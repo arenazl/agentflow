@@ -25,20 +25,19 @@ jobs:
           git config user.email "ci@agentflow.local"
           git config user.name "GitHub Actions"
 
-          # Trim whitespace del token (los secrets a veces traen \n trailing).
+          # Trim whitespace del token.
           TOKEN=$(printf '%s' "$HEROKU_API_KEY" | tr -d '[:space:]')
-          echo "Token length (debe ser ~36): ${#TOKEN}"
+          echo "Token length: ${#TOKEN}"
 
-          # Auth git via credential.helper store + ~/.git-credentials
-          printf 'https://heroku:%s@git.heroku.com\n' "$TOKEN" > ~/.git-credentials
-          chmod 600 ~/.git-credentials
-          git config --global credential.helper store
+          # Auth: Heroku quiere "email:apikey" base64 vía Authorization header.
+          # (Basic auth con username/password directo en URL falla.)
+          AUTH=$(printf '%s' "arenazl@gmail.com:$TOKEN" | base64 -w 0)
 
           # Split: tomar solo backend/ como commit/branch desechable
           SPLIT_SHA=$(git subtree split --prefix=backend HEAD)
           echo "Split SHA: $SPLIT_SHA"
 
-          # Push forzado al remote de Heroku
-          git push --force \
+          # Push forzado al remote de Heroku con header Authorization explícito
+          git -c http.extraheader="Authorization: Basic $AUTH" push --force \
             "https://git.heroku.com/$HEROKU_APP.git" \
             "$SPLIT_SHA:refs/heads/main"
