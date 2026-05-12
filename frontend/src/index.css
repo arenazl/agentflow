@@ -1,0 +1,118 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  /* Backgrounds — 3 capas de profundidad */
+  --bg-app: #f6f7fa;
+  --bg-topbar: #ffffff;
+  --bg-sidebar: #002554;
+  --bg-card: #ffffff;
+  --bg-hover: #eef0f4;
+
+  /* Texto */
+  --text-primary: #0f172a;
+  --text-secondary: #475569;
+  --text-sidebar: #f8fafc;
+
+  /* Brand Coldwell */
+  --color-primary: #002554;
+  --color-primary-hover: #003a7f;
+  --color-accent: #c9a45a;
+  --color-accent-hover: #d9b878;
+
+  /* Estados */
+  --color-success: #22c55e;
+  --color-success-bg: rgba(34, 197, 94, 0.10);
+  --color-danger: #ef4444;
+  --color-warning: #f59e0b;
+  --color-flame: #f97316;
+  --color-flame-bg: rgba(249, 115, 22, 0.12);
+  --color-blue: #3b82f6;
+  --color-accent-bg-soft: rgba(201, 164, 90, 0.08);
+  --color-accent-bg: rgba(201, 164, 90, 0.18);
+
+  --border-color: #e2e8f0;
+  --border-active: rgba(201, 164, 90, 0.5);
+  --border-glow: rgba(201, 164, 90, 0.18);
+}
+
+[data-theme="dark"] {
+  /* 3 capas reales para dar jerarquía */
+  --bg-app: #06112a;
+  --bg-topbar: #0f1d3a;
+  --bg-sidebar: #04091a;
+  --bg-card: #0f1d3a;
+  --bg-hover: #142447;
+
+  --text-primary: #f1f5f9;
+  --text-secondary: #94a3b8;
+  --text-sidebar: #f8fafc;
+
+  --color-primary: #1e3a6f;
+  --color-primary-hover: #2c4f8c;
+  --color-accent: #c9a45a;
+  --color-accent-hover: #e2b66a;
+
+  --color-success: #22c55e;
+  --color-success-bg: rgba(34, 197, 94, 0.15);
+  --color-danger: #ef4444;
+  --color-warning: #fbbf24;
+  --color-flame: #f97316;
+  --color-flame-bg: rgba(249, 115, 22, 0.18);
+  --color-blue: #60a5fa;
+  --color-accent-bg-soft: rgba(201, 164, 90, 0.10);
+  --color-accent-bg: rgba(201, 164, 90, 0.22);
+
+  --border-color: #1e3358;
+  --border-active: rgba(201, 164, 90, 0.5);
+  --border-glow: rgba(201, 164, 90, 0.22);
+}
+
+html, body, #root { height: 100%; }
+body {
+  margin: 0;
+  font-family: 'Nunito', ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  background-color: var(--bg-app);
+  color: var(--text-primary);
+}
+
+/* Sacar las flechitas spinner default de inputs type=number */
+input[type="number"] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text-secondary); }
+
+/* Animaciones reutilizables */
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 0 0 0 var(--border-active), 0 0 0 4px var(--border-glow); }
+  50% { box-shadow: 0 0 0 0 var(--border-active), 0 0 0 8px transparent; }
+}
+.animate-pulse-glow { animation: pulse-glow 2s ease-in-out infinite; }
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.animate-shimmer {
+  background: linear-gradient(90deg, transparent, var(--border-glow), transparent);
+  background-size: 200% 100%;
+  animation: shimmer 2s ease-in-out infinite;
+}
+
+@keyframes fade-in-up {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.animate-fade-in-up { animation: fade-in-up 0.3s ease-out both; }
