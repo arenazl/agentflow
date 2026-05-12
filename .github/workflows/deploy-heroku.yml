@@ -24,4 +24,5 @@ jobs:
           heroku_app_name: agentflow
           heroku_email: arenazl@gmail.com
           appdir: backend
-          buildpack: heroku/python
+          # La app ya existe — evitar que la action intente `heroku create`.
+          dontautocreate: true
