@@ -92,23 +92,43 @@ export function DMO() {
 
   const contextData = useMemo(() => {
     if (!data) return {}
-    const moneyBlockId = data.bloques.find((b) => b.es_money_block)?.id
-    const moneyBlockDone = moneyBlockId ? !!logsByBloque.get(moneyBlockId)?.completado : false
-    const sig = data.bloques.find((b) => hhmmToMin(b.hora_inicio.slice(0, 5)) > nowMin)
+    const bloquesCtx = data.bloques.map((b) => {
+      const log = logsByBloque.get(b.id)
+      return {
+        id: b.id,
+        nombre: b.nombre,
+        hora_inicio: b.hora_inicio.slice(0, 5),
+        hora_fin: b.hora_fin.slice(0, 5),
+        es_money_block: b.es_money_block,
+        metrica_tipo: b.metrica_tipo,
+        metrica_label: b.metrica_label,
+        metrica_meta: b.metrica_meta,
+        valor_actual: log?.valor_metrica ?? 0,
+        completado: !!log?.completado,
+        estado: getStatus(b, log, nowMin),
+      }
+    })
+    const actual = bloquesCtx.find((b) => b.estado === 'now') || null
+    const sig = bloquesCtx.find((b) => hhmmToMin(b.hora_inicio) > nowMin) || null
+    const vencidosNoCompletados = bloquesCtx.filter((b) => b.estado === 'overdue').map((b) => b.nombre)
     return {
-      template: data.template?.nombre,
-      coach: data.template?.coach_nombre,
-      conv_hoy: data.conversaciones_realizadas,
-      meta: data.conversaciones_meta,
-      completados: data.logs.filter((l) => l.completado).length,
-      total_bloques: data.bloques.length,
-      hora: now,
-      money_block_done: moneyBlockDone,
-      siguiente_bloque: sig
-        ? { id: sig.id, nombre: sig.nombre, hora_inicio: sig.hora_inicio.slice(0, 5) }
+      template: data.template
+        ? { nombre: data.template.nombre, coach: data.template.coach_nombre, mercado: data.template.mercado }
         : null,
+      hora: now,
+      fecha,
+      meta_conversaciones_diaria: data.conversaciones_meta,
+      conv_hoy: data.conversaciones_realizadas,
+      pct_completitud: data.pct_completitud,
+      bloques: bloquesCtx,
+      bloque_actual: actual,
+      siguiente_bloque: sig
+        ? { id: sig.id, nombre: sig.nombre, hora_inicio: sig.hora_inicio, metrica_label: sig.metrica_label }
+        : null,
+      bloques_completados_count: bloquesCtx.filter((b) => b.completado).length,
+      bloques_vencidos_no_completados: vencidosNoCompletados,
     }
-  }, [data, logsByBloque, now, nowMin])
+  }, [data, logsByBloque, now, nowMin, fecha])
 
   if (loading) {
     return (

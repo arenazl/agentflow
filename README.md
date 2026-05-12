@@ -96,3 +96,30 @@ Abrir `http://localhost:5200`. Backend en `8200`.
 - Guía maestra de stack: `d:\Code\APP_GUIDE\APP_GUIDE_MASTER.md`
 - Catálogo de componentes UI: sección 7 del MASTER
 - Manuales AI Coach por pantalla: `backend/screens/*.md`
+- Investigación de mercado + roadmap: `docs/INVESTIGACION_E_IMPLEMENTACION.md`
+
+## Integraciones futuras (pendientes)
+
+### Tokko Broker (CRM externo)
+
+**Estado:** documentado, no implementado todavía.
+
+Beyker tiene su catálogo de propiedades en **Tokko Broker** (~39 propiedades del branch 86005 "Coldwell Banker Beyker"). Tokko expone una API REST en `https://www.tokkobroker.com/api/v1/property/?key=<TOKEN>&limit=100`. La idea es:
+
+- AgentFlow lee propiedades de Tokko (no las publica — Tokko ya difunde a ZonaProp / Argenprop / MercadoLibre).
+- El vendedor las trabaja en el pipeline interno (visitas, deals, autorizaciones).
+- Arquitectura preparada para ser **multi-source** (snapshot local / Tokko API / MercadoLibre API / custom) — cuando se venda AgentFlow a otra inmobiliaria, cambia el adapter sin tocar el resto.
+
+**Lo que falta implementar (~1 día de laburo):**
+1. Modelo `IntegrationConfig` (key/value) en backend.
+2. Endpoints `/api/integrations/` (GET / PATCH) + `/api/integrations/tokko/test` + `/api/integrations/tokko/sync`.
+3. `services/tokko_client.py` (cliente HTTPX con adapter pattern).
+4. Columna `tokko_id` en tabla `propiedades` para conciliar upserts.
+5. Pantalla `/integraciones` admin-only con card Tokko (API key, branch ID, source toggle, botón test, botón sync, last_sync_at).
+6. Cron Heroku cada 30 min para auto-pull.
+
+**Para la demo actual**, se usa el snapshot estático que ya existe en `D:\Code\beykercoldwell\src\data\tokko-snapshot.json` (38 props del branch Beyker) si se quisiera, o el seed propio de AgentFlow (20 props ficticias).
+
+### WhatsApp Business API + IA agéntica (próximo)
+
+Ver `docs/INVESTIGACION_E_IMPLEMENTACION.md` sección 3 — la jugada de mayor impacto para AR. Pipeline propuesto: Meta Cloud API → webhook AgentFlow → `services/whatsapp_agent.py` (Gemini con function calling) → tools (`buscar_propiedades`, `agendar_visita`, `crear_lead`, `notificar_vendedor`).
