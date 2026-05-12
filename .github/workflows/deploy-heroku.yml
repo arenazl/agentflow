@@ -25,10 +25,14 @@ jobs:
           git config user.email "ci@agentflow.local"
           git config user.name "GitHub Actions"
 
-          # Auth Heroku git via ~/.netrc (formato sin indentación — .netrc es estricto).
-          printf 'machine git.heroku.com\n  login ci@agentflow.local\n  password %s\n' "$HEROKU_API_KEY" > ~/.netrc
-          chmod 600 ~/.netrc
-          echo "netrc lines: $(wc -l < ~/.netrc)"
+          # Trim whitespace del token (los secrets a veces traen \n trailing).
+          TOKEN=$(printf '%s' "$HEROKU_API_KEY" | tr -d '[:space:]')
+          echo "Token length (debe ser ~36): ${#TOKEN}"
+
+          # Auth git via credential.helper store + ~/.git-credentials
+          printf 'https://heroku:%s@git.heroku.com\n' "$TOKEN" > ~/.git-credentials
+          chmod 600 ~/.git-credentials
+          git config --global credential.helper store
 
           # Split: tomar solo backend/ como commit/branch desechable
           SPLIT_SHA=$(git subtree split --prefix=backend HEAD)
