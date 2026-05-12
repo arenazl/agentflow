@@ -26,18 +26,18 @@ jobs:
           git config user.name "GitHub Actions"
 
           # Trim whitespace del token.
-          TOKEN=$(printf '%s' "$HEROKU_API_KEY" | tr -d '[:space:]')
+          export TOKEN=$(printf '%s' "$HEROKU_API_KEY" | tr -d '[:space:]')
           echo "Token length: ${#TOKEN}"
 
-          # Auth: Heroku quiere "email:apikey" base64 vía Authorization header.
-          # (Basic auth con username/password directo en URL falla.)
-          AUTH=$(printf '%s' "arenazl@gmail.com:$TOKEN" | base64 -w 0)
+          # Inline credential helper que devuelve user/pass sin prompt
+          # (user "heroku" + password = API key es el patrón estándar de Heroku Git HTTP).
+          git config --global credential.helper '!f() { echo "username=heroku"; echo "password=$TOKEN"; }; f'
 
           # Split: tomar solo backend/ como commit/branch desechable
           SPLIT_SHA=$(git subtree split --prefix=backend HEAD)
           echo "Split SHA: $SPLIT_SHA"
 
-          # Push forzado al remote de Heroku con header Authorization explícito
-          git -c http.extraheader="Authorization: Basic $AUTH" push --force \
+          # Push forzado al remote de Heroku
+          git push --force \
             "https://git.heroku.com/$HEROKU_APP.git" \
             "$SPLIT_SHA:refs/heads/main"
