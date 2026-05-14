@@ -13,28 +13,14 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0  # subtree split necesita historia completa
 
-      - name: Push backend/ subtree to Heroku
+      - name: Push to Heroku (repo completo, buildpack monorepo toma backend/)
         env:
           HEROKU_API_KEY: ${{ secrets.HEROKU_API_KEY }}
           HEROKU_APP: agentflow
         run: |
           set -e
-          git config user.email "ci@agentflow.local"
-          git config user.name "GitHub Actions"
-
-          # Trim whitespace del token (por si tiene \n al final).
           TOKEN=$(printf '%s' "$HEROKU_API_KEY" | tr -d '[:space:]')
-
-          # Split: tomar solo backend/ como commit/branch desechable
-          SPLIT_SHA=$(git subtree split --prefix=backend HEAD)
-          echo "Split SHA: $SPLIT_SHA"
-
-          # Push forzado al remote de Heroku usando token en URL (Basic Auth standard)
-          # Formato: https://<user>:<password>@host/path
-          # Para Heroku Git, user es cualquier cosa (ej: x-access-token) y password es la API key.
           git push --force \
             "https://heroku:${TOKEN}@git.heroku.com/${HEROKU_APP}.git" \
-            "${SPLIT_SHA}:refs/heads/main"
+            HEAD:refs/heads/main
