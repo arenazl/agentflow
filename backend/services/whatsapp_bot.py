@@ -1,71 +1,125 @@
-"""Bot conversacional para WhatsApp.
+"""Bot conversacional WhatsApp con knowledge base + function calling.
 
-Estrategia:
-- Cuando entra un mensaje nuevo de un contacto que NO tiene vendedor asignado,
-  el bot toma el control y conversa con el cliente para calificar el lead.
-- Despues de N intercambios o cuando detecta intencion de "quiero hablar con
-  un asesor" o cuando ya tiene zona + presupuesto + ambientes basicos, deriva
-  a un agente humano via round-robin de los disponibles.
-- Si NADIE esta disponible: el bot se despide diciendo que un asesor le va a
-  escribir en breve, y la conversacion queda en cola para asignar al proximo
-  que se ponga disponible (o el coordinador la despacha manualmente).
+Arquitectura:
+1. Al import-time se cargan TODOS los .md de backend/knowledge/ en memoria.
+2. En cada mensaje entrante, el bot recibe:
+   - system_instruction: tono + reglas anti-alucinacion + knowledge base completa
+   - historial de la conversacion
+   - tools disponibles (buscar_propiedades, agendar_visita, etc.)
+3. Gemini puede:
+   - Responder con texto directo (si la info esta en el knowledge base)
+   - Llamar una tool (si necesita data en vivo)
+   - Decidir derivar al asesor humano
+4. Loop hasta que Gemini responda con texto final o se alcance el maximo de tool calls.
 
-El bot llama a Gemini con un system prompt + el historial de la conversacion.
-Cuando Gemini decide derivar, devuelve un JSON especial que el handler interpreta.
+La derivacion se detecta por palabras clave en la respuesta del bot:
+- "DERIVAR_HUMANO" → marcar conversacion para asignar a vendedor
+- "ESPERAR_HUMANO" → caso complejo, no derivar automaticamente
 """
-from typing import List, Optional, Tuple
+from pathlib import Path
+from typing import List, Optional, Tuple, Dict, Any
 from datetime import datetime
 import json
-import asyncio
 
 from sqlalchemy import select, and_, desc
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from models.user import User, UserRole
-from models.cliente import Cliente
 from models.whatsapp import (
     WhatsappConversation,
     WhatsappMessage,
     WaConversacionEstado,
     WaMensajeDireccion,
 )
-from services.gemini import _generate
+from services.gemini import generate_with_tools
+from services.whatsapp_tools import TOOL_DECLARATIONS, execute_tool
 
 
-BOT_SYSTEM_PROMPT = """Sos el asistente conversacional de Coldwell Banker Beyker, una inmobiliaria de Buenos Aires, Argentina. Atendes consultas de clientes por WhatsApp en horario fuera de oficina o como primer contacto.
+# ---------- Carga del knowledge base ----------
 
-Tu objetivo es:
-1. Saludar de forma profesional y calida (NO formal ni robotico).
-2. Calificar al cliente con preguntas naturales (no como un formulario):
-   - Si busca COMPRAR, ALQUILAR o VENDER/PUBLICAR su propiedad
-   - Zona o barrio de interes
-   - Presupuesto aproximado
-   - Cantidad de ambientes (si es compra/alquiler)
-3. Cuando tengas esos 3-4 datos basicos, derivar al cliente a un asesor humano.
-4. Si el cliente pide explicitamente hablar con alguien, derivar inmediatamente.
-5. Si el cliente solo dice "hola" o algo ambiguo, preguntar amablemente en que lo podes ayudar.
-6. NUNCA inventes propiedades, precios o disponibilidad concretas. Si te preguntan algo especifico, decir que un asesor le va a confirmar.
+_KNOWLEDGE_DIR = Path(__file__).parent.parent / "knowledge"
+_KNOWLEDGE_CACHE: Optional[str] = None
 
-Tono: argentino, cercano pero profesional. Usa "vos", "che", "dale". NO uses emojis. Mensajes cortos (1-3 lineas max). Sin formalidad excesiva.
 
-Formato de respuesta:
-SIEMPRE respondes en JSON con esta forma:
-{
-  "respuesta": "el texto que le mando al cliente",
-  "accion": "continuar" | "derivar" | "esperar_humano",
-  "datos_capturados": {
-    "operacion": "compra" | "alquiler" | "venta" | null,
-    "zona": "string o null",
-    "presupuesto": "string o null",
-    "ambientes": "numero o null",
-    "nombre": "string o null"
-  }
-}
+def _load_knowledge() -> str:
+    global _KNOWLEDGE_CACHE
+    if _KNOWLEDGE_CACHE is not None:
+        return _KNOWLEDGE_CACHE
 
-- "continuar" = seguis calificando (te falta info).
-- "derivar" = ya tenes lo suficiente o el cliente pidio hablar con humano. La respuesta debe avisar al cliente que en breve le escribe un asesor.
-- "esperar_humano" = caso especial, el cliente quiere algo que vos no podes resolver (negociacion compleja, queja). Respuesta breve diciendo que un asesor le contesta.
+    if not _KNOWLEDGE_DIR.exists():
+        _KNOWLEDGE_CACHE = ""
+        return ""
+
+    pieces: List[str] = []
+    for md in sorted(_KNOWLEDGE_DIR.glob("beyker_*.md")):
+        try:
+            pieces.append(f"\n\n### {md.stem} ###\n\n{md.read_text(encoding='utf-8')}")
+        except Exception as e:
+            print(f"[whatsapp_bot] error leyendo {md}: {e}")
+
+    _KNOWLEDGE_CACHE = "\n".join(pieces)
+    return _KNOWLEDGE_CACHE
+
+
+# ---------- System prompt ----------
+
+def _build_system_instruction() -> str:
+    knowledge = _load_knowledge()
+    return f"""Sos el asistente conversacional oficial de Coldwell Banker Beyker, una inmobiliaria de Buenos Aires.
+
+ROL Y LIMITES:
+- Atendes consultas de clientes por WhatsApp.
+- Tu misión es: (1) responder con info correcta de Beyker, (2) calificar leads nuevos, (3) derivar al asesor humano cuando corresponda.
+- NO sos un humano. Si te preguntan, decí que sos el asistente automático de la oficina y que podes conectar con un asesor.
+
+REGLA DE ORO ANTI-ALUCINACION:
+Si te preguntan algo especifico (precio de una propiedad, direccion, comision aplicada a un caso concreto, disponibilidad) y NO encontras la respuesta en la BASE DE CONOCIMIENTO de abajo o en alguna de las TOOLS disponibles → NO INVENTES. Decí: "Esa info te la confirma un asesor en un ratito" y al final agregá la palabra DERIVAR_HUMANO en una linea aparte.
+
+CUANDO USAR TOOLS:
+- "buscar_propiedades": cuando el cliente pregunta por propiedades disponibles, opciones en una zona, busqueda con filtros. NUNCA inventes propiedades — siempre llamá esta tool.
+- "consultar_propiedad": cuando preguntan por una propiedad por ID o ya se le mostro una concreta.
+- "agentes_disponibles_ahora": antes de derivar, para saber si hay alguien online.
+- "agendar_visita_tentativa": cuando el cliente acepta ver una propiedad en una fecha/hora puntual.
+
+CUANDO DERIVAR (agregá DERIVAR_HUMANO al final de tu respuesta):
+- Si pediste 3-4 datos basicos del cliente (operacion, zona, presupuesto, ambientes) y los tenes → derivar.
+- Si el cliente lo pide explicitamente ("quiero hablar con alguien", "pasame con un asesor").
+- Si la consulta excede tu rol (queja, problema legal complejo, negociacion de reserva).
+- Si despues de 5-6 mensajes la cosa no avanza → derivar.
+
+CUANDO NO DERIVAR:
+- Si la pregunta tiene respuesta clara en la base de conocimiento (horarios, direccion, comisiones, proceso, FAQ).
+- Si esta saludando o haciendo small talk inicial.
+
+FORMATO DE RESPUESTA:
+- Mensajes cortos (1-3 lineas).
+- Tuteo argentino, sin emojis, sin formalidad.
+- Si vas a derivar, mencionalo de forma natural y agregá DERIVAR_HUMANO en una linea aparte al final, sin texto adicional.
+
+BASE DE CONOCIMIENTO DE BEYKER (esta es la fuente de verdad, usala SIEMPRE antes de inventar):
+{knowledge}
+
+--- FIN DEL CONTEXTO ---
+
+Ahora respondé al mensaje del cliente siguiendo todas las reglas de arriba.
 """
+
+
+# ---------- Conversion historial → formato Gemini ----------
+
+def _historial_a_contents(mensajes: List[WhatsappMessage], nuevo: WhatsappMessage) -> List[Dict[str, Any]]:
+    """Convierte el historial de WhatsappMessage a formato Gemini contents."""
+    contents: List[Dict[str, Any]] = []
+    for m in mensajes:
+        role = "user" if m.direccion == WaMensajeDireccion.inbound else "model"
+        contents.append({"role": role, "parts": [{"text": m.contenido}]})
+    contents.append({"role": "user", "parts": [{"text": nuevo.contenido}]})
+    return contents
+
+
+# ---------- Loop principal ----------
+
+MAX_TOOL_CALLS = 4
 
 
 async def procesar_mensaje_entrante(
@@ -74,58 +128,84 @@ async def procesar_mensaje_entrante(
     nuevo_mensaje: WhatsappMessage,
 ) -> Tuple[Optional[str], str]:
     """
-    Procesa un mensaje entrante en una conversacion sin asignar.
-    Devuelve (texto_respuesta_bot, accion).
+    Procesa un mensaje entrante. Loop con tool calling hasta respuesta final.
 
+    Devuelve (texto_respuesta_bot, accion).
     accion in {'continuar', 'derivar', 'esperar_humano'}
     """
-    # Cargar historial de mensajes
+    # Cargar historial
     r = await db.execute(
         select(WhatsappMessage)
-        .where(WhatsappMessage.conversation_id == conversation.id)
+        .where(
+            and_(
+                WhatsappMessage.conversation_id == conversation.id,
+                WhatsappMessage.id != nuevo_mensaje.id,
+            )
+        )
         .order_by(WhatsappMessage.enviado_at.asc())
-        .limit(20)
+        .limit(30)
     )
-    mensajes = r.scalars().all()
+    historial = r.scalars().all()
 
-    historial = []
-    for m in mensajes:
-        rol = "user" if m.direccion == WaMensajeDireccion.inbound else "model"
-        historial.append(f"[{rol}] {m.contenido}")
-    historial_str = "\n".join(historial)
+    contents = _historial_a_contents(historial, nuevo_mensaje)
+    system_instruction = _build_system_instruction()
 
-    prompt = (
-        f"{BOT_SYSTEM_PROMPT}\n\n"
-        f"--- HISTORIAL DE LA CONVERSACION ---\n{historial_str}\n"
-        f"--- NUEVO MENSAJE DEL CLIENTE ---\n{nuevo_mensaje.contenido}\n\n"
-        f"Respondé SOLO con el JSON. NO escribas nada antes ni despues del JSON."
-    )
+    # Loop tool calling
+    for _ in range(MAX_TOOL_CALLS):
+        part = await generate_with_tools(
+            contents=contents,
+            tools=TOOL_DECLARATIONS,
+            system_instruction=system_instruction,
+            max_tokens=1500,
+        )
+        if not part:
+            return ("Disculpame, tuve un problema. En un ratito te escribe un asesor.", "esperar_humano")
 
-    data = await _generate(prompt, json_mode=True, max_tokens=500)
-    if not data:
-        return ("Disculpame, tuve un problema. En breve te escribe un asesor.", "esperar_humano")
+        # Caso 1: Gemini devuelve texto → fin del loop
+        if "text" in part and part["text"]:
+            text = part["text"].strip()
+            # Detectar marcador de derivacion
+            if "DERIVAR_HUMANO" in text:
+                clean = text.replace("DERIVAR_HUMANO", "").strip()
+                return (clean or None, "derivar")
+            if "ESPERAR_HUMANO" in text:
+                clean = text.replace("ESPERAR_HUMANO", "").strip()
+                return (clean or None, "esperar_humano")
+            return (text, "continuar")
 
-    respuesta = data.get("respuesta", "Un asesor te va a contestar en breve.")
-    accion = data.get("accion", "esperar_humano")
-    datos = data.get("datos_capturados") or {}
+        # Caso 2: Gemini quiere llamar una tool
+        if "functionCall" in part:
+            fc = part["functionCall"]
+            name = fc.get("name", "")
+            args = fc.get("args", {}) or {}
+            print(f"[bot] tool call: {name}({args})")
+            try:
+                result = await execute_tool(db, name, args)
+            except Exception as e:
+                result = {"error": str(e)}
 
-    # Si capturo nombre y la conv no lo tiene, actualizar
-    if datos.get("nombre") and not conversation.nombre_contacto:
-        conversation.nombre_contacto = datos["nombre"]
+            # Agregar al historial: la function call del model + la response
+            contents.append({"role": "model", "parts": [{"functionCall": fc}]})
+            contents.append({
+                "role": "user",
+                "parts": [{
+                    "functionResponse": {
+                        "name": name,
+                        "response": {"result": result},
+                    }
+                }],
+            })
+            continue
 
-    # Si capturo zona/presupuesto/ambientes y hay cliente vinculado, podemos actualizar preferencias
-    # (futuro: enriquecer Cliente con estos datos)
+        # Sin text ni functionCall → caer en fallback
+        return ("Disculpame, no entendi bien. Un asesor te escribe en un rato.", "esperar_humano")
 
-    return (respuesta, accion)
+    # Si llegamos al cap de tool calls sin texto final
+    return ("Te paso con un asesor para que te ayude.", "derivar")
 
 
 async def asignar_round_robin(db: AsyncSession) -> Optional[User]:
-    """
-    Encuentra el proximo vendedor disponible para asignarle una conversacion.
-    Round-robin segun last_assigned_at (los menos recientes primero).
-
-    Devuelve None si no hay nadie disponible.
-    """
+    """Encuentra el proximo vendedor disponible (less recently assigned first)."""
     r = await db.execute(
         select(User)
         .where(
@@ -135,10 +215,7 @@ async def asignar_round_robin(db: AsyncSession) -> Optional[User]:
                 User.is_available == True,  # noqa: E712
             )
         )
-        .order_by(
-            # Los que nunca se les asigno (NULL last) van primero
-            User.last_assigned_at.asc().nulls_first(),
-        )
+        .order_by(User.last_assigned_at.asc().nulls_first())
         .limit(1)
     )
     return r.scalar_one_or_none()
@@ -148,10 +225,7 @@ async def derivar_a_humano(
     db: AsyncSession,
     conversation: WhatsappConversation,
 ) -> Optional[User]:
-    """
-    Asigna la conversacion al proximo vendedor disponible y actualiza last_assigned_at.
-    Devuelve el vendedor asignado o None si nadie esta disponible.
-    """
+    """Asigna la conv al proximo vendedor disponible y actualiza last_assigned_at."""
     agente = await asignar_round_robin(db)
     if not agente:
         return None
