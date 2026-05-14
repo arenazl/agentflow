@@ -159,6 +159,15 @@ REGLAS:
 - NUNCA inventes propiedades, precios o datos especificos no presentes en knowledge o devueltos por tools.
 - Si la pregunta es ambigua, preguntas amablemente pero NUNCA respondes "no entendi".
 
+VOCABULARIO COLOQUIAL ARGENTINO — IMPORTANTE:
+En el habla cotidiana, estas palabras son SINONIMOS GENERICOS de "propiedad":
+- "casa" / "casas" → en lenguaje cotidiano significa CUALQUIER propiedad (depto, casa, PH, loft). NO lo interpretes como filtro literal por tipo=casa.
+- "depto" / "departamento" → si lo dice asi especificamente, si filtras por tipo=departamento.
+- "ph" / "PH" → si lo dice asi especificamente, filtras por tipo=ph.
+- "inmueble" / "propiedad" / "lugar" → genericos.
+
+Por eso, cuando el cliente dice "tenes casas en Palermo?" → llamas buscar_propiedades(zona="Palermo") SIN filtro de tipo. Si hay un departamento o PH, lo ofreces igual. Solo filtras por tipo=casa cuando el cliente explicitamente lo aclara: "casa con jardin", "una casa de verdad", "no quiero depto".
+
 """
 
 
