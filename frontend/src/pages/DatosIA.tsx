@@ -260,15 +260,38 @@ function TabWhatsapp({ draft, setDraft, canEdit }: { draft: BotConfig; setDraft:
         </div>
       </Section>
 
+      {status?.has_pending_qr && draft.baileys_service_url && (
+        <Section title="Escanear código QR (pareo inicial)">
+          <p className="text-sm mb-3">
+            El servicio está esperando que escanees el QR con WhatsApp Business del celular oficial de Beyker.
+          </p>
+          <div className="flex flex-col items-center gap-3 p-4 rounded-lg border"
+               style={{ backgroundColor: '#fff', borderColor: 'var(--border-color)' }}>
+            <a
+              href={`${draft.baileys_service_url}/qr`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="px-4 py-2 rounded-lg font-semibold text-white"
+              style={{ backgroundColor: '#25D366' }}
+            >
+              Abrir página de QR (nueva pestaña)
+            </a>
+            <p className="text-xs text-center" style={{ color: 'var(--text-secondary)' }}>
+              Abrí WhatsApp Business app → Menú → Dispositivos vinculados → Vincular un dispositivo<br />
+              y escaneá el código.
+            </p>
+          </div>
+        </Section>
+      )}
+
       <Section title="Configuración del servicio Baileys">
         <p className="text-xs mb-3" style={{ color: 'var(--text-secondary)' }}>
           El servicio Baileys (Node.js) corre en un server separado y conecta con WhatsApp Web del celular dedicado de Beyker.
-          Configurá acá la URL del servicio y la API key compartida.
         </p>
         <Grid>
           <Field label="URL del servicio Baileys" full>
             <Input value={draft.baileys_service_url} onChange={(v) => set('baileys_service_url', v)} disabled={!canEdit}
-                   placeholder="https://baileys.beyker.com.ar  o  http://localhost:3100" />
+                   placeholder="https://agentflow-baileys-xxx.herokuapp.com" />
           </Field>
           <Field label="API key compartida" full>
             <Input value={draft.baileys_api_key} onChange={(v) => set('baileys_api_key', v)} disabled={!canEdit}

@@ -91,6 +91,7 @@ async def baileys_status(
                 configurado=True,
                 ok=data.get("ok", False),
                 baileys_ready=data.get("baileys_ready", False),
+                has_pending_qr=data.get("has_pending_qr", False),
                 numero=data.get("user"),
                 last_checked=now,
             )

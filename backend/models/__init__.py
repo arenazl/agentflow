@@ -6,6 +6,7 @@ from .visita import Visita
 from .pipeline import PipelineDeal
 from .dmo import Coach, DmoTemplate, DmoBloque, VendedorDmoAssignment, DmoLog, MetricaTipo
 from .bot_config import BotConfig, BotFaq
+from .baileys_auth import BaileysAuthState
 from .whatsapp import WhatsappConversation, WhatsappMessage, WaConversacionEstado, WaMensajeDireccion
 
 __all__ = [
@@ -28,4 +29,5 @@ __all__ = [
     "WaMensajeDireccion",
     "BotConfig",
     "BotFaq",
+    "BaileysAuthState",
 ]

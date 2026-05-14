@@ -234,6 +234,7 @@ export interface BaileysStatus {
   configurado: boolean
   ok: boolean
   baileys_ready?: boolean
+  has_pending_qr?: boolean
   numero?: string | null
   last_checked: string
   error?: string | null

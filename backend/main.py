@@ -13,7 +13,7 @@ from core.config import settings
 from api import (
     auth, users, clientes, propiedades, visitas, autorizaciones, pipeline,
     dmo, dashboard, ai_coach, coaches, dmo_templates, dmo_assignments, whatsapp,
-    bot_config,
+    bot_config, baileys_auth,
 )
 
 
@@ -53,3 +53,4 @@ app.include_router(dashboard.router, prefix="/api/dashboard", tags=["dashboard"]
 app.include_router(ai_coach.router, prefix="/api/ai-coach", tags=["ai-coach"])
 app.include_router(whatsapp.router, prefix="/api/whatsapp", tags=["whatsapp"])
 app.include_router(bot_config.router, prefix="/api/bot-config", tags=["bot-config"])
+app.include_router(baileys_auth.router, prefix="/api/baileys-auth", tags=["baileys-auth"])

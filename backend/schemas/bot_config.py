@@ -45,6 +45,7 @@ class BaileysStatus(BaseModel):
     configurado: bool
     ok: bool
     baileys_ready: bool = False
+    has_pending_qr: bool = False
     numero: Optional[str] = None
     last_checked: datetime
     error: Optional[str] = None
