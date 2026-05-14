@@ -79,3 +79,21 @@ class WhatsappMockIncoming(BaseModel):
     telefono: str
     nombre_contacto: Optional[str] = None
     contenido: str
+
+
+# ---------- Webhook real (Baileys -> AgentFlow) ----------
+
+class BaileysIncomingPayload(BaseModel):
+    """Payload que envia el servicio Baileys cuando recibe un mensaje real."""
+    telefono: str  # +549... formato E.164
+    nombre_contacto: Optional[str] = None
+    contenido: str
+    meta_message_id: Optional[str] = None
+    timestamp: Optional[datetime] = None
+
+
+class BaileysOutboundResult(BaseModel):
+    """Resultado de pedirle a Baileys que envie un mensaje."""
+    ok: bool
+    meta_message_id: Optional[str] = None
+    error: Optional[str] = None

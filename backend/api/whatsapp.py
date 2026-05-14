@@ -1,24 +1,29 @@
-"""Inbox compartido WhatsApp - Fase 1 (sin IA, sin Meta real).
+"""Inbox compartido WhatsApp.
+
+Fase 2: Baileys real + bot conversacional con Gemini.
 
 Endpoints:
 - GET    /conversations/                  lista filtrable
 - GET    /conversations/{id}              detalle con mensajes
 - PATCH  /conversations/{id}              asignar / cerrar / vincular cliente
-- POST   /conversations/{id}/send         vendedor envia mensaje (mock: no llama a Meta)
+- POST   /conversations/{id}/send         vendedor envia mensaje (via Baileys si esta activo)
 - POST   /conversations/{id}/mark-read    marca mensajes como leidos
 - POST   /mock/incoming                   simula mensaje entrante (solo dev)
-- POST   /webhook                         endpoint que Meta llama (stub por ahora)
+- POST   /webhook/incoming                webhook que llama el servicio Baileys (auth API_KEY)
+- GET    /agents/available                lista de agentes online ahora
 """
+import os
+import httpx
 from datetime import datetime
 from typing import Optional, List
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Header
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_, desc, update
 from sqlalchemy.orm import selectinload
 
-from core.database import get_db
+from core.database import get_db, AsyncSessionLocal
 from core.security import get_current_user
-from models.user import User
+from models.user import User, UserRole
 from models.cliente import Cliente
 from models.whatsapp import (
     WhatsappConversation,
@@ -33,7 +38,33 @@ from schemas.whatsapp import (
     WhatsappMessageOutgoing,
     WhatsappMessageResponse,
     WhatsappMockIncoming,
+    BaileysIncomingPayload,
 )
+from services.whatsapp_bot import procesar_mensaje_entrante, derivar_a_humano
+
+
+# Config: si el servicio Baileys esta corriendo, lo llamamos para enviar.
+# Si no, queda como mock (solo guarda en DB).
+BAILEYS_SERVICE_URL = os.getenv("BAILEYS_SERVICE_URL", "")  # ej: http://localhost:3100
+WHATSAPP_WEBHOOK_API_KEY = os.getenv("WHATSAPP_WEBHOOK_API_KEY", "")  # secret compartido con Baileys
+
+
+async def _send_via_baileys(telefono: str, contenido: str) -> tuple[bool, Optional[str], Optional[str]]:
+    """Llama al servicio Baileys para enviar un mensaje real.
+    Devuelve (ok, meta_message_id, error)."""
+    if not BAILEYS_SERVICE_URL:
+        return (False, None, None)  # modo mock, no es error
+    try:
+        async with httpx.AsyncClient(timeout=15) as client:
+            r = await client.post(
+                f"{BAILEYS_SERVICE_URL}/send",
+                json={"telefono": telefono, "contenido": contenido},
+                headers={"X-API-Key": WHATSAPP_WEBHOOK_API_KEY},
+            )
+            data = r.json()
+            return (data.get("ok", False), data.get("meta_message_id"), data.get("error"))
+    except Exception as e:
+        return (False, None, str(e))
 
 router = APIRouter()
 
@@ -157,15 +188,16 @@ async def send_message(
     if not c:
         raise HTTPException(404, "Conversacion no encontrada")
 
-    # En Fase 1 mock: solo guardamos en DB, no llamamos a Meta.
-    # En Fase 2/3 acá iría: httpx.post(meta_api_url, ...)
+    # Intentar enviar via Baileys si esta configurado, sino solo guardar (mock)
+    ok, meta_id, err = await _send_via_baileys(c.telefono, payload.contenido)
+
     m = WhatsappMessage(
         conversation_id=conv_id,
         direccion=WaMensajeDireccion.outbound,
         sender_id=user.id,
         contenido=payload.contenido,
         leido=True,
-        meta_message_id=None,  # mock
+        meta_message_id=meta_id,
     )
     db.add(m)
 
@@ -178,7 +210,11 @@ async def send_message(
 
     await db.commit()
     await db.refresh(m)
-    return _msg_to_dict(m)
+    result = _msg_to_dict(m)
+    result["sent_via_baileys"] = ok
+    if err:
+        result["baileys_error"] = err
+    return result
 
 
 @router.post("/conversations/{conv_id}/mark-read")
@@ -254,8 +290,150 @@ async def mock_incoming(
     return {"conversation_id": c.id, "message_id": m.id}
 
 
-@router.post("/webhook")
-async def webhook(_: User = Depends(get_current_user)):
-    """Stub del webhook real de Meta. Por ahora no procesa, solo responde 200."""
-    # TODO Fase 2: parsear payload de Meta y crear mensajes inbound
-    return {"ok": True, "note": "Fase 1 - webhook Meta sin conectar todavia"}
+@router.post("/webhook/incoming")
+async def webhook_incoming(
+    payload: BaileysIncomingPayload,
+    x_api_key: Optional[str] = Header(None, alias="X-API-Key"),
+    db: AsyncSession = Depends(get_db),
+):
+    """Webhook real que llama el servicio Baileys cuando llega un mensaje al numero de Beyker.
+
+    Flujo:
+    1. Buscar o crear la conversacion.
+    2. Vincular con un cliente existente si hay match por telefono.
+    3. Guardar el mensaje entrante.
+    4. Si la conv NO tiene assignee, el bot responde y eventualmente deriva.
+    5. Si tiene assignee, simplemente notifica (el agente humano responde).
+    """
+    if WHATSAPP_WEBHOOK_API_KEY and x_api_key != WHATSAPP_WEBHOOK_API_KEY:
+        raise HTTPException(401, "API key invalida")
+
+    now = payload.timestamp or datetime.utcnow()
+
+    r = await db.execute(
+        select(WhatsappConversation).where(WhatsappConversation.telefono == payload.telefono)
+    )
+    c = r.scalar_one_or_none()
+
+    if not c:
+        cli_r = await db.execute(select(Cliente).where(Cliente.telefono == payload.telefono))
+        cli = cli_r.scalar_one_or_none()
+        c = WhatsappConversation(
+            telefono=payload.telefono,
+            nombre_contacto=payload.nombre_contacto,
+            cliente_id=cli.id if cli else None,
+            estado=WaConversacionEstado.nueva,
+            ultima_actividad=now,
+            unread_count=0,
+        )
+        db.add(c)
+        await db.flush()
+
+    m = WhatsappMessage(
+        conversation_id=c.id,
+        direccion=WaMensajeDireccion.inbound,
+        contenido=payload.contenido,
+        enviado_at=now,
+        leido=False,
+        meta_message_id=payload.meta_message_id,
+    )
+    db.add(m)
+    c.ultima_actividad = now
+    c.unread_count = (c.unread_count or 0) + 1
+    await db.flush()
+
+    # Si la conversacion no tiene assignee, el bot toma la iniciativa
+    bot_action = None
+    bot_response_text = None
+    derivado_a = None
+
+    if c.assignee_id is None and c.estado != WaConversacionEstado.bloqueada:
+        bot_response_text, bot_action = await procesar_mensaje_entrante(db, c, m)
+
+        # Guardar la respuesta del bot como outbound (sender_id=None = bot)
+        if bot_response_text:
+            bot_msg = WhatsappMessage(
+                conversation_id=c.id,
+                direccion=WaMensajeDireccion.outbound,
+                sender_id=None,  # bot
+                contenido=bot_response_text,
+                enviado_at=datetime.utcnow(),
+                leido=True,
+                meta_message_id=f"bot_{int(datetime.utcnow().timestamp() * 1000)}",
+            )
+            db.add(bot_msg)
+            # Enviar via Baileys
+            await _send_via_baileys(c.telefono, bot_response_text)
+
+        if bot_action == "derivar":
+            agente = await derivar_a_humano(db, c)
+            if agente:
+                derivado_a = f"{agente.nombre} {agente.apellido}"
+                # Avisar al cliente que ya tiene asesor asignado
+                handoff_msg = (
+                    f"Listo, te derivo con {agente.nombre}, uno de nuestros asesores. "
+                    "En un ratito te escribe."
+                )
+                m2 = WhatsappMessage(
+                    conversation_id=c.id,
+                    direccion=WaMensajeDireccion.outbound,
+                    sender_id=None,
+                    contenido=handoff_msg,
+                    enviado_at=datetime.utcnow(),
+                    leido=True,
+                    meta_message_id=f"bot_handoff_{int(datetime.utcnow().timestamp() * 1000)}",
+                )
+                db.add(m2)
+                await _send_via_baileys(c.telefono, handoff_msg)
+            else:
+                # Nadie disponible
+                no_agent_msg = (
+                    "Por ahora no tenemos asesores conectados. "
+                    "En cuanto haya uno disponible te escribimos. ¡Gracias por la paciencia!"
+                )
+                m3 = WhatsappMessage(
+                    conversation_id=c.id,
+                    direccion=WaMensajeDireccion.outbound,
+                    sender_id=None,
+                    contenido=no_agent_msg,
+                    enviado_at=datetime.utcnow(),
+                    leido=True,
+                    meta_message_id=f"bot_noagent_{int(datetime.utcnow().timestamp() * 1000)}",
+                )
+                db.add(m3)
+                await _send_via_baileys(c.telefono, no_agent_msg)
+
+    await db.commit()
+    return {
+        "ok": True,
+        "conversation_id": c.id,
+        "bot_action": bot_action,
+        "derivado_a": derivado_a,
+    }
+
+
+@router.get("/agents/available")
+async def list_available_agents(
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(get_current_user),
+):
+    """Lista de vendedores que estan disponibles ahora para tomar leads."""
+    r = await db.execute(
+        select(User).where(
+            and_(
+                User.role == UserRole.vendedor,
+                User.is_active == True,  # noqa: E712
+                User.is_available == True,  # noqa: E712
+            )
+        ).order_by(User.last_assigned_at.asc().nulls_first())
+    )
+    agents = r.scalars().all()
+    return [
+        {
+            "id": a.id,
+            "nombre": a.nombre,
+            "apellido": a.apellido,
+            "last_assigned_at": a.last_assigned_at.isoformat() if a.last_assigned_at else None,
+        }
+        for a in agents
+    ]

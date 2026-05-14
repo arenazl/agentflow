@@ -8,6 +8,7 @@ import {
 } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { ThemeSwitcher } from './ThemeSwitcher'
+import { AvailabilityToggle } from './AvailabilityToggle'
 import { BeykerLogo } from './BeykerLogo'
 
 interface NavItem {
@@ -64,6 +65,7 @@ export function Layout({ children }: { children: ReactNode }) {
           </div>
         </div>
         <div className="flex items-center gap-2">
+          <AvailabilityToggle />
           <ThemeSwitcher />
           {user && (
             <div className="flex items-center gap-2 pl-2 border-l border-[var(--border-color)]">

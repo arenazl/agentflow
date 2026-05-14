@@ -6,7 +6,7 @@ from typing import List
 from core.database import get_db
 from core.security import get_current_user, get_password_hash, require_role
 from models.user import User
-from schemas.user import UserResponse, UserCreate, UserUpdate
+from schemas.user import UserResponse, UserCreate, UserUpdate, AvailabilityUpdate
 
 router = APIRouter()
 
@@ -39,6 +39,21 @@ async def create_user(
         meta_conversaciones_diaria=payload.meta_conversaciones_diaria,
     )
     db.add(u)
+    await db.commit()
+    await db.refresh(u)
+    return u
+
+
+@router.patch("/me/availability", response_model=UserResponse)
+async def set_availability(
+    payload: AvailabilityUpdate,
+    db: AsyncSession = Depends(get_db),
+    current: User = Depends(get_current_user),
+):
+    """Cada vendedor marca/desmarca su disponibilidad para recibir nuevos leads de WhatsApp."""
+    result = await db.execute(select(User).where(User.id == current.id))
+    u = result.scalar_one()
+    u.is_available = payload.is_available
     await db.commit()
     await db.refresh(u)
     return u

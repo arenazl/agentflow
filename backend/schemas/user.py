@@ -23,6 +23,11 @@ class UserUpdate(BaseModel):
     foto_url: Optional[str] = None
     meta_conversaciones_diaria: Optional[int] = None
     is_active: Optional[bool] = None
+    is_available: Optional[bool] = None
+
+
+class AvailabilityUpdate(BaseModel):
+    is_available: bool
 
 
 class UserResponse(BaseModel):
@@ -35,6 +40,7 @@ class UserResponse(BaseModel):
     role: str
     meta_conversaciones_diaria: int
     is_active: bool
+    is_available: bool = False
     created_at: datetime
 
     class Config:

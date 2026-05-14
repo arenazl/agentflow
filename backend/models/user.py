@@ -24,4 +24,6 @@ class User(Base):
     role = Column(SAEnum(UserRole), nullable=False, default=UserRole.vendedor)
     meta_conversaciones_diaria = Column(Integer, nullable=False, default=20)
     is_active = Column(Boolean, nullable=False, default=True)
+    is_available = Column(Boolean, nullable=False, default=False)
+    last_assigned_at = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())

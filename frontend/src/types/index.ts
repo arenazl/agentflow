@@ -8,6 +8,7 @@ export interface User {
   role: 'admin' | 'gerente' | 'vendedor'
   meta_conversaciones_diaria: number
   is_active: boolean
+  is_available?: boolean
   created_at: string
 }
 
