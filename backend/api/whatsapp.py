@@ -328,6 +328,15 @@ async def webhook_incoming(
 
     now = payload.timestamp or datetime.utcnow()
 
+    # Idempotencia: si ya procesamos este meta_message_id, devolver OK sin re-procesar.
+    # WhatsApp Multi-Device a veces entrega el mismo mensaje 2-3 veces.
+    if payload.meta_message_id:
+        dup = await db.execute(
+            select(WhatsappMessage).where(WhatsappMessage.meta_message_id == payload.meta_message_id)
+        )
+        if dup.scalar_one_or_none():
+            return {"ok": True, "duplicate": True, "meta_message_id": payload.meta_message_id}
+
     r = await db.execute(
         select(WhatsappConversation).where(WhatsappConversation.telefono == payload.telefono)
     )
