@@ -14,6 +14,7 @@ import { Configuracion } from './pages/Configuracion'
 import { Coaches } from './pages/Coaches'
 import { DMOTemplates } from './pages/DMOTemplates'
 import { AsignacionesDMO } from './pages/AsignacionesDMO'
+import { DatosIA } from './pages/DatosIA'
 import { Inbox } from './pages/Inbox'
 
 function PrivateLayout() {
@@ -56,6 +57,7 @@ function PrivateLayout() {
         <Route path="/coaches" element={<Coaches />} />
         <Route path="/dmo-templates" element={<DMOTemplates />} />
         <Route path="/asignaciones-dmo" element={<AsignacionesDMO />} />
+        <Route path="/datos-ia" element={<DatosIA />} />
         <Route path="/configuracion" element={<Configuracion />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

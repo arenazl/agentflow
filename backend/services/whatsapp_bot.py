@@ -31,6 +31,7 @@ from models.whatsapp import (
     WaConversacionEstado,
     WaMensajeDireccion,
 )
+from models.bot_config import BotConfig, BotFaq
 from services.gemini import generate_with_tools
 from services.whatsapp_tools import TOOL_DECLARATIONS, execute_tool
 
@@ -41,30 +42,81 @@ _KNOWLEDGE_DIR = Path(__file__).parent.parent / "knowledge"
 _KNOWLEDGE_CACHE: Optional[str] = None
 
 
-def _load_knowledge() -> str:
-    global _KNOWLEDGE_CACHE
-    if _KNOWLEDGE_CACHE is not None:
-        return _KNOWLEDGE_CACHE
-
+def _read_raw_templates() -> str:
+    """Lee los .md crudos (con placeholders sin renderizar)."""
     if not _KNOWLEDGE_DIR.exists():
-        _KNOWLEDGE_CACHE = ""
         return ""
-
     pieces: List[str] = []
     for md in sorted(_KNOWLEDGE_DIR.glob("beyker_*.md")):
         try:
             pieces.append(f"\n\n### {md.stem} ###\n\n{md.read_text(encoding='utf-8')}")
         except Exception as e:
             print(f"[whatsapp_bot] error leyendo {md}: {e}")
+    return "\n".join(pieces)
 
-    _KNOWLEDGE_CACHE = "\n".join(pieces)
-    return _KNOWLEDGE_CACHE
+
+async def _render_knowledge(db: AsyncSession) -> str:
+    """Renderiza el knowledge base reemplazando placeholders con valores de bot_config
+    + appendea las FAQ activas y los textos extra del usuario."""
+    global _KNOWLEDGE_CACHE
+    if _KNOWLEDGE_CACHE is not None:
+        return _KNOWLEDGE_CACHE
+
+    template = _read_raw_templates()
+
+    # Cargar config y faqs de DB
+    r = await db.execute(select(BotConfig).where(BotConfig.id == 1))
+    cfg = r.scalar_one_or_none()
+    placeholders: Dict[str, str] = {}
+    extras: List[str] = []
+    if cfg:
+        for field, val in cfg.__dict__.items():
+            if field.startswith("_") or field in ("id", "updated_at"):
+                continue
+            placeholders[field] = val if val else "[sin definir]"
+        # Textos extra que se appendean
+        if cfg.identidad_extra:
+            extras.append(f"\n\n### NOTAS EXTRA DE IDENTIDAD ###\n\n{cfg.identidad_extra}")
+        if cfg.diferencial_extra:
+            extras.append(f"\n\n### DIFERENCIAL EXTRA ###\n\n{cfg.diferencial_extra}")
+        if cfg.tono_extra:
+            extras.append(f"\n\n### TONO EXTRA ###\n\n{cfg.tono_extra}")
+        if cfg.mensaje_bienvenida:
+            extras.append(f"\n\n### MENSAJE DE BIENVENIDA ###\n\nCuando saludas por primera vez, usa este mensaje (o uno similar): \"{cfg.mensaje_bienvenida}\"")
+        if cfg.mensaje_off_hours:
+            extras.append(f"\n\n### MENSAJE FUERA DE HORARIO ###\n\nSi es fuera de horario laboral: \"{cfg.mensaje_off_hours}\"")
+        if cfg.palabras_derivacion_extra:
+            extras.append(f"\n\n### PALABRAS QUE DISPARAN DERIVACION INMEDIATA (ademas de las default) ###\n\n{cfg.palabras_derivacion_extra}")
+
+    # Reemplazar placeholders {campo} en el template
+    try:
+        rendered = template.format(**placeholders) if placeholders else template
+    except KeyError as e:
+        # Si hay placeholder no soportado, dejamos el template como esta
+        print(f"[whatsapp_bot] placeholder no encontrado: {e}")
+        rendered = template
+
+    # FAQs activas
+    faqs_r = await db.execute(
+        select(BotFaq).where(BotFaq.activo == True).order_by(BotFaq.orden, BotFaq.id)  # noqa: E712
+    )
+    faqs = faqs_r.scalars().all()
+    if faqs:
+        faq_text = "\n\n### FAQ EDITABLE DESDE LA APP ###\n\n"
+        for f in faqs:
+            faq_text += f"**P:** {f.pregunta}\n**R:** {f.respuesta}\n\n"
+        rendered += faq_text
+
+    rendered += "".join(extras)
+
+    _KNOWLEDGE_CACHE = rendered
+    return rendered
 
 
 # ---------- System prompt ----------
 
-def _build_system_instruction() -> str:
-    knowledge = _load_knowledge()
+async def _build_system_instruction(db: AsyncSession) -> str:
+    knowledge = await _render_knowledge(db)
     return f"""Sos el asistente conversacional oficial de Coldwell Banker Beyker, una inmobiliaria de Buenos Aires.
 
 ROL Y LIMITES:
@@ -148,7 +200,7 @@ async def procesar_mensaje_entrante(
     historial = r.scalars().all()
 
     contents = _historial_a_contents(historial, nuevo_mensaje)
-    system_instruction = _build_system_instruction()
+    system_instruction = await _build_system_instruction(db)
 
     # Loop tool calling
     for _ in range(MAX_TOOL_CALLS):

@@ -99,6 +99,18 @@ export const usersAPI = {
   setAvailability: (is_available: boolean) => api.patch('/users/me/availability', { is_available }),
 }
 
+export const botConfigAPI = {
+  get: () => api.get('/bot-config/'),
+  update: (data: any) => api.patch('/bot-config/', data),
+  baileysStatus: () => api.get('/bot-config/baileys-status'),
+  faqs: {
+    list: () => api.get('/bot-config/faqs'),
+    create: (data: any) => api.post('/bot-config/faqs', data),
+    update: (id: number, data: any) => api.patch(`/bot-config/faqs/${id}`, data),
+    remove: (id: number) => api.delete(`/bot-config/faqs/${id}`),
+  },
+}
+
 export const dashboardAPI = {
   resumen: () => api.get('/dashboard/resumen'),
   ranking: () => api.get('/dashboard/ranking-vendedores'),

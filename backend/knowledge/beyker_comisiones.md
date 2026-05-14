@@ -2,10 +2,10 @@
 
 ## Compraventa de propiedades
 
-Honorarios sugeridos por **CUCICBA** (Colegio Único de Corredores Inmobiliarios de CABA) en operaciones de compraventa:
+Honorarios sugeridos por **CUCICBA** (Colegio Único de Corredores Inmobiliarios de CABA):
 
-- **Al vendedor:** 3% del valor de venta + IVA
-- **Al comprador:** 3% del valor de venta + IVA
+- **Al vendedor:** {comision_compra_vendedor}
+- **Al comprador:** {comision_compra_comprador}
 
 Los honorarios se pagan al momento del **boleto de compraventa**, no en la reserva.
 
@@ -13,8 +13,8 @@ Los honorarios se pagan al momento del **boleto de compraventa**, no en la reser
 
 ## Alquiler
 
-- **Al propietario:** equivalente a 1 mes de alquiler + IVA (por el contrato de N años).
-- **Al inquilino:** equivalente a 1 mes de alquiler + IVA.
+- **Al propietario:** {comision_alquiler_propietario}
+- **Al inquilino:** {comision_alquiler_inquilino}
 
 ## Tasación
 
@@ -24,11 +24,11 @@ Los honorarios se pagan al momento del **boleto de compraventa**, no en la reser
 ## Reserva
 
 Para iniciar una operación de compra, el comprador hace una **reserva**:
-- Monto: típicamente 5% del valor de compra (se imputa al precio final).
-- Plazo de aceptación por parte del vendedor: 48-72hs.
+- Monto: típicamente **{reserva_pct_estandar}** del valor de compra (se imputa al precio final).
+- Plazo de aceptación por parte del vendedor: **{reserva_plazo_aceptacion}**.
 - Si el comprador se vuelve atrás, **pierde la reserva**.
 - Si el vendedor se vuelve atrás, **devuelve la reserva doblada**.
 
 ---
 
-*Si el cliente pregunta valores específicos negociados (descuentos, casos especiales), derivar al asesor. El bot solo da los valores estándar.*
+*Si el cliente pregunta valores específicos negociados (descuentos, casos especiales), derivar al asesor.*

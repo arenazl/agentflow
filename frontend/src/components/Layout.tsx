@@ -4,7 +4,7 @@ import {
   Menu, X, ChevronLeft, ChevronRight,
   LayoutDashboard, ClipboardList, Users, Building2, Calendar,
   GitBranch, FileText, Settings, LogOut, GraduationCap, Layers, UserCog,
-  MessageSquare,
+  MessageSquare, Brain,
 } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { ThemeSwitcher } from './ThemeSwitcher'
@@ -30,6 +30,7 @@ const navItems: NavItem[] = [
   { label: 'Coaches', to: '/coaches', icon: GraduationCap, roles: ['admin', 'gerente'] },
   { label: 'Templates DMO', to: '/dmo-templates', icon: Layers, roles: ['admin', 'gerente'] },
   { label: 'Asignaciones DMO', to: '/asignaciones-dmo', icon: UserCog, roles: ['admin', 'gerente'] },
+  { label: 'Datos IA', to: '/datos-ia', icon: Brain, roles: ['admin', 'gerente'] },
   { label: 'Configuracion', to: '/configuracion', icon: Settings },
 ]
 

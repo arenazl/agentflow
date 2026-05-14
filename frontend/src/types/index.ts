@@ -202,6 +202,53 @@ export interface DashboardResumen {
   pipeline_etapas: Record<string, number>
 }
 
+export interface BotConfig {
+  id: number
+  telefono_oficial?: string | null
+  email_oficial?: string | null
+  direccion?: string | null
+  web?: string | null
+  instagram?: string | null
+  horario_semana?: string | null
+  horario_sabado?: string | null
+  horario_domingo?: string | null
+  comision_compra_vendedor?: string | null
+  comision_compra_comprador?: string | null
+  comision_alquiler_propietario?: string | null
+  comision_alquiler_inquilino?: string | null
+  reserva_pct_estandar?: string | null
+  reserva_plazo_aceptacion?: string | null
+  baileys_service_url?: string | null
+  baileys_api_key?: string | null
+  numero_oficial_wa?: string | null
+  mensaje_bienvenida?: string | null
+  mensaje_off_hours?: string | null
+  tono_extra?: string | null
+  palabras_derivacion_extra?: string | null
+  identidad_extra?: string | null
+  diferencial_extra?: string | null
+  updated_at?: string | null
+}
+
+export interface BaileysStatus {
+  configurado: boolean
+  ok: boolean
+  baileys_ready?: boolean
+  numero?: string | null
+  last_checked: string
+  error?: string | null
+}
+
+export interface BotFaq {
+  id: number
+  pregunta: string
+  respuesta: string
+  orden: number
+  activo: boolean
+  created_at: string
+  updated_at?: string | null
+}
+
 export type WaConvEstado = 'nueva' | 'abierta' | 'cerrada' | 'bloqueada'
 export type WaMsgDireccion = 'in' | 'out'
 

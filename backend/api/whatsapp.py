@@ -43,28 +43,46 @@ from schemas.whatsapp import (
 from services.whatsapp_bot import procesar_mensaje_entrante, derivar_a_humano
 
 
-# Config: si el servicio Baileys esta corriendo, lo llamamos para enviar.
-# Si no, queda como mock (solo guarda en DB).
-BAILEYS_SERVICE_URL = os.getenv("BAILEYS_SERVICE_URL", "")  # ej: http://localhost:3100
-WHATSAPP_WEBHOOK_API_KEY = os.getenv("WHATSAPP_WEBHOOK_API_KEY", "")  # secret compartido con Baileys
+# Config Baileys: primero busca en bot_config (DB), si no usa env vars como fallback.
+ENV_BAILEYS_URL = os.getenv("BAILEYS_SERVICE_URL", "")
+ENV_API_KEY = os.getenv("WHATSAPP_WEBHOOK_API_KEY", "")
 
 
-async def _send_via_baileys(telefono: str, contenido: str) -> tuple[bool, Optional[str], Optional[str]]:
+async def _get_baileys_config(db: AsyncSession) -> tuple[str, str]:
+    """Devuelve (service_url, api_key) priorizando DB sobre env vars."""
+    try:
+        from models.bot_config import BotConfig
+        r = await db.execute(select(BotConfig).where(BotConfig.id == 1))
+        cfg = r.scalar_one_or_none()
+        if cfg:
+            return (cfg.baileys_service_url or ENV_BAILEYS_URL,
+                    cfg.baileys_api_key or ENV_API_KEY)
+    except Exception:
+        pass
+    return (ENV_BAILEYS_URL, ENV_API_KEY)
+
+
+async def _send_via_baileys(db: AsyncSession, telefono: str, contenido: str) -> tuple[bool, Optional[str], Optional[str]]:
     """Llama al servicio Baileys para enviar un mensaje real.
     Devuelve (ok, meta_message_id, error)."""
-    if not BAILEYS_SERVICE_URL:
+    service_url, api_key = await _get_baileys_config(db)
+    if not service_url:
         return (False, None, None)  # modo mock, no es error
     try:
         async with httpx.AsyncClient(timeout=15) as client:
             r = await client.post(
-                f"{BAILEYS_SERVICE_URL}/send",
+                f"{service_url}/send",
                 json={"telefono": telefono, "contenido": contenido},
-                headers={"X-API-Key": WHATSAPP_WEBHOOK_API_KEY},
+                headers={"X-API-Key": api_key},
             )
             data = r.json()
             return (data.get("ok", False), data.get("meta_message_id"), data.get("error"))
     except Exception as e:
         return (False, None, str(e))
+
+
+# Variable compartida para validar webhook entrante (que hace Baileys hacia AgentFlow)
+WHATSAPP_WEBHOOK_API_KEY = ENV_API_KEY  # mantengo por compat con el codigo existente del webhook
 
 router = APIRouter()
 
@@ -189,7 +207,7 @@ async def send_message(
         raise HTTPException(404, "Conversacion no encontrada")
 
     # Intentar enviar via Baileys si esta configurado, sino solo guardar (mock)
-    ok, meta_id, err = await _send_via_baileys(c.telefono, payload.contenido)
+    ok, meta_id, err = await _send_via_baileys(db, c.telefono, payload.contenido)
 
     m = WhatsappMessage(
         conversation_id=conv_id,
@@ -363,7 +381,7 @@ async def webhook_incoming(
             )
             db.add(bot_msg)
             # Enviar via Baileys
-            await _send_via_baileys(c.telefono, bot_response_text)
+            await _send_via_baileys(db, c.telefono, bot_response_text)
 
         if bot_action == "derivar":
             agente = await derivar_a_humano(db, c)
@@ -384,7 +402,7 @@ async def webhook_incoming(
                     meta_message_id=f"bot_handoff_{int(datetime.utcnow().timestamp() * 1000)}",
                 )
                 db.add(m2)
-                await _send_via_baileys(c.telefono, handoff_msg)
+                await _send_via_baileys(db, c.telefono, handoff_msg)
             else:
                 # Nadie disponible
                 no_agent_msg = (
@@ -401,7 +419,7 @@ async def webhook_incoming(
                     meta_message_id=f"bot_noagent_{int(datetime.utcnow().timestamp() * 1000)}",
                 )
                 db.add(m3)
-                await _send_via_baileys(c.telefono, no_agent_msg)
+                await _send_via_baileys(db, c.telefono, no_agent_msg)
 
     await db.commit()
     return {
