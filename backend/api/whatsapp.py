@@ -412,6 +412,36 @@ async def webhook_incoming(
                 )
                 db.add(m2)
                 await _send_via_baileys(db, c.telefono, handoff_msg)
+
+                # === Notificacion al vendedor en su WhatsApp personal ===
+                if agente.telefono_personal:
+                    # Tomar los ultimos 4 mensajes del cliente para armar el resumen
+                    last_msgs = await db.execute(
+                        select(WhatsappMessage)
+                        .where(
+                            and_(
+                                WhatsappMessage.conversation_id == c.id,
+                                WhatsappMessage.direccion == WaMensajeDireccion.inbound,
+                            )
+                        )
+                        .order_by(WhatsappMessage.enviado_at.desc())
+                        .limit(4)
+                    )
+                    msgs_cliente = list(reversed(last_msgs.scalars().all()))
+                    resumen = "\n".join(f"> {m.contenido[:100]}" for m in msgs_cliente)
+
+                    contacto_label = c.nombre_contacto or c.telefono
+                    notif_msg = (
+                        f"[AgentFlow] Nuevo lead asignado\n\n"
+                        f"Cliente: {contacto_label}\n"
+                        f"Lo que pregunto:\n{resumen}\n\n"
+                        f"Abri el Inbox para responder:\n"
+                        f"https://agentflow-beyker.netlify.app/inbox"
+                    )
+                    try:
+                        await _send_via_baileys(db, agente.telefono_personal, notif_msg)
+                    except Exception as e:
+                        print(f"[notif vendedor] error: {e}")
             else:
                 # Nadie disponible
                 no_agent_msg = (

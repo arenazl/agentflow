@@ -26,4 +26,5 @@ class User(Base):
     is_active = Column(Boolean, nullable=False, default=True)
     is_available = Column(Boolean, nullable=False, default=False)
     last_assigned_at = Column(DateTime(timezone=True), nullable=True)
+    telefono_personal = Column(String(40), nullable=True)  # WhatsApp para notificaciones de leads
     created_at = Column(DateTime(timezone=True), server_default=func.now())

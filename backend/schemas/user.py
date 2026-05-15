@@ -20,6 +20,7 @@ class UserUpdate(BaseModel):
     nombre: Optional[str] = None
     apellido: Optional[str] = None
     telefono: Optional[str] = None
+    telefono_personal: Optional[str] = None
     foto_url: Optional[str] = None
     meta_conversaciones_diaria: Optional[int] = None
     is_active: Optional[bool] = None
@@ -36,6 +37,7 @@ class UserResponse(BaseModel):
     nombre: str
     apellido: str
     telefono: Optional[str] = None
+    telefono_personal: Optional[str] = None
     foto_url: Optional[str] = None
     role: str
     meta_conversaciones_diaria: int
