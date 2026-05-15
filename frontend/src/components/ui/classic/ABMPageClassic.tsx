@@ -10,7 +10,7 @@
 */
 import { ComponentType, ReactNode } from 'react'
 import {
-  Plus, Search, LayoutGrid, List,
+  Plus, Search, LayoutGrid, List, Calendar,
   Upload, Download, SlidersHorizontal,
 } from 'lucide-react'
 
@@ -38,7 +38,7 @@ export interface ToolbarButtonDef {
 export const TOOLBAR_IMPORT: Pick<ToolbarButtonDef, 'icon' | 'label'> = { icon: Upload,   label: 'Importar' }
 export const TOOLBAR_EXPORT: Pick<ToolbarButtonDef, 'icon' | 'label'> = { icon: Download, label: 'Exportar' }
 
-export type ViewMode = 'table' | 'cards'
+export type ViewMode = 'table' | 'cards' | 'calendar'
 
 export interface ABMPageClassicProps {
   /** Eyebrow uppercase con barrita dorada antes del título (ej "Cartera · CRM") */
@@ -67,9 +67,12 @@ export interface ABMPageClassicProps {
   onAdd?: () => void
   addLabel?: string
 
-  /** Toggle de vistas Tabla/Cards */
+  /** Toggle de vistas Tabla/Cards (y opcional Calendar) */
   view?: ViewMode
   onViewChange?: (v: ViewMode) => void
+  /** Qué vistas estan disponibles. Default: ['table', 'cards'].
+   * Agregar 'calendar' solo en pantallas que tengan dimension temporal (ej: Visitas). */
+  availableViews?: ViewMode[]
 
   /** Slot para filtros custom (ModernSelect, DatePicker, etc.) entre los chips y el search */
   extraFilters?: ReactNode
@@ -112,45 +115,59 @@ function ToolbarBtn({ btn }: { btn: ToolbarButtonDef }) {
   )
 }
 
-function ViewToggle({ view, onChange }: { view: ViewMode; onChange: (v: ViewMode) => void }) {
+const VIEW_OPTIONS: Record<ViewMode, { label: string; icon: typeof List }> = {
+  table:    { label: 'Tabla',     icon: List },
+  cards:    { label: 'Cards',     icon: LayoutGrid },
+  calendar: { label: 'Calendario', icon: Calendar },
+}
+
+function ViewToggle({
+  view, onChange, available,
+}: {
+  view: ViewMode
+  onChange: (v: ViewMode) => void
+  available: ViewMode[]
+}) {
+  const n = available.length
+  if (n < 2) return null  // un solo modo, no muestra toggle
+  const activeIdx = Math.max(0, available.indexOf(view))
+  const widthPct = 100 / n
+
   return (
     <div
       className="inline-flex items-center rounded-lg p-1 relative"
       style={{ backgroundColor: 'var(--surface)', border: '1px solid var(--border-color)' }}
     >
-      {/* Pill deslizante que indica la vista activa */}
+      {/* Pill deslizante */}
       <div
         className="absolute top-1 bottom-1 rounded transition-all duration-300 ease-out"
         style={{
           backgroundColor: 'var(--navy-800)',
-          width: 'calc(50% - 4px)',
-          left: view === 'table' ? '4px' : 'calc(50% + 0px)',
+          width: `calc(${widthPct}% - ${8 / n}px)`,
+          left: `calc(${activeIdx * widthPct}% + 4px)`,
           boxShadow: '0 1px 3px rgba(14,43,79,0.15)',
         }}
       />
 
-      <button
-        type="button"
-        onClick={() => onChange('table')}
-        className="relative z-10 px-3 py-1.5 rounded inline-flex items-center gap-1.5 text-xs font-medium transition-colors duration-200"
-        style={{ color: view === 'table' ? '#fff' : 'var(--ink-4)' }}
-        title="Vista tabla"
-        aria-label="Vista tabla"
-      >
-        <List className="h-4 w-4" />
-        <span className="hidden sm:inline">Tabla</span>
-      </button>
-      <button
-        type="button"
-        onClick={() => onChange('cards')}
-        className="relative z-10 px-3 py-1.5 rounded inline-flex items-center gap-1.5 text-xs font-medium transition-colors duration-200"
-        style={{ color: view === 'cards' ? '#fff' : 'var(--ink-4)' }}
-        title="Vista cards"
-        aria-label="Vista cards"
-      >
-        <LayoutGrid className="h-4 w-4" />
-        <span className="hidden sm:inline">Cards</span>
-      </button>
+      {available.map((v) => {
+        const opt = VIEW_OPTIONS[v]
+        const Icon = opt.icon
+        const active = view === v
+        return (
+          <button
+            key={v}
+            type="button"
+            onClick={() => onChange(v)}
+            className="relative z-10 px-3 py-1.5 rounded inline-flex items-center gap-1.5 text-xs font-medium transition-colors duration-200"
+            style={{ color: active ? '#fff' : 'var(--ink-4)' }}
+            title={`Vista ${opt.label.toLowerCase()}`}
+            aria-label={`Vista ${opt.label.toLowerCase()}`}
+          >
+            <Icon className="h-4 w-4" />
+            <span className="hidden sm:inline">{opt.label}</span>
+          </button>
+        )
+      })}
     </div>
   )
 }
@@ -163,11 +180,15 @@ export function ABMPageClassic(props: ABMPageClassicProps) {
     filterChips, activeChip, onChipChange,
     searchValue, onSearchChange, searchPlaceholder = 'Buscar...',
     onOpenFilters, toolbar, onAdd, addLabel = 'Nuevo',
-    view, onViewChange,
+    view, onViewChange, availableViews,
     extraFilters,
     loading, isEmpty, emptyMessage = 'No hay resultados',
     children,
   } = props
+
+  const _availableViews: ViewMode[] = availableViews && availableViews.length > 0
+    ? availableViews
+    : ['table', 'cards']
 
   return (
     <div className="flex flex-col h-full min-h-0">
@@ -280,7 +301,7 @@ export function ABMPageClassic(props: ABMPageClassicProps) {
             )}
 
             {view !== undefined && onViewChange && (
-              <ViewToggle view={view} onChange={onViewChange} />
+              <ViewToggle view={view} onChange={onViewChange} available={_availableViews} />
             )}
           </div>
         </div>

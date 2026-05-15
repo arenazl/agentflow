@@ -10,6 +10,7 @@ import { SideModal } from '../components/SideModal'
 import { VoiceInputButton } from '../components/VoiceInputButton'
 import { AICoachPanel } from '../components/AICoachPanel'
 import { SkeletonTable } from '../components/ui/Skeleton'
+import { CalendarView } from '../components/ui/CalendarView'
 import { visitasAPI } from '../services/api'
 import type { Visita } from '../types'
 
@@ -184,13 +185,76 @@ export function Visitas() {
         onAdd={() => toast.info('Alta de visita — próximamente')}
         addLabel="Agendar visita"
         view={view}
-        onViewChange={setView}
+        onViewChange={(v) => { setView(v); try { localStorage.setItem('visitas:view', v) } catch {} }}
+        availableViews={['table', 'cards', 'calendar']}
         loading={loading}
-        isEmpty={!loading && filtered.length === 0}
+        isEmpty={!loading && filtered.length === 0 && view !== 'calendar'}
         emptyMessage="No hay visitas con esos filtros."
       >
         {loading ? (
           <SkeletonTable rows={8} cols={6} />
+        ) : view === 'calendar' ? (
+          <CalendarView
+            items={filtered}
+            getId={(v) => v.id}
+            getDate={(v) => v.fecha_hora}
+            getTime={(v) => new Date(v.fecha_hora).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}
+            getLabel={(v) => `${v.cliente_nombre ?? '—'} · ${v.propiedad_titulo ?? ''}`}
+            getColor={(v) => {
+              const map: Record<string, string> = {
+                agendada:   'var(--color-blue, #3b82f6)',
+                concretada: 'var(--color-success)',
+                cancelada:  'var(--color-danger)',
+                ausente:    'var(--color-warning)',
+              }
+              return map[v.estado] || 'var(--color-accent)'
+            }}
+            onItemClick={(v) => setEditing({ ...v })}
+            helperText={`${filtered.length} visitas`}
+          />
+        ) : view === 'cards' ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {filtered.map((v, i) => {
+              const estadoMap: Record<string, { color: string; label: string }> = {
+                agendada:   { color: 'var(--color-blue, #3b82f6)', label: 'Agendada' },
+                concretada: { color: 'var(--color-success)',       label: 'Concretada' },
+                cancelada:  { color: 'var(--color-danger)',        label: 'Cancelada' },
+                ausente:    { color: 'var(--color-warning)',       label: 'Ausente' },
+              }
+              const est = estadoMap[v.estado] || { color: 'var(--ink-5)', label: v.estado }
+              return (
+                <button
+                  key={v.id}
+                  onClick={() => setEditing({ ...v })}
+                  className="text-left rounded-2xl border p-5 transition-all duration-300 hover:-translate-y-1 animate-fade-in-up relative overflow-hidden"
+                  style={{
+                    backgroundColor: 'var(--surface)',
+                    borderColor: 'var(--border-color)',
+                    boxShadow: '0 1px 3px rgba(14,43,79,0.05)',
+                    animationDelay: `${Math.min(i, 8) * 60}ms`,
+                    animationFillMode: 'both',
+                  }}
+                >
+                  <div className="absolute top-0 left-0 right-0 h-1" style={{ background: est.color }} />
+                  <div className="text-xs uppercase tracking-wider font-semibold mb-2" style={{ color: est.color }}>
+                    {est.label}
+                  </div>
+                  <div className="font-serif-display text-xl leading-tight mb-1" style={{ color: 'var(--text-primary)' }}>
+                    {v.cliente_nombre ?? '—'}
+                  </div>
+                  <div className="text-xs mb-3 truncate" style={{ color: 'var(--ink-4)' }}>
+                    {v.propiedad_titulo}
+                  </div>
+                  <div className="text-sm font-mono-tnum" style={{ color: 'var(--ink-3)' }}>
+                    {formatFecha(v.fecha_hora)}
+                  </div>
+                  <div className="text-xs mt-2" style={{ color: 'var(--ink-5)' }}>
+                    {v.vendedor_nombre}
+                  </div>
+                </button>
+              )
+            })}
+          </div>
         ) : (
           <ABMTableClassic
             data={filtered}
