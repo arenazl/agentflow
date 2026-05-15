@@ -235,7 +235,7 @@ export function ABMPageClassic(props: ABMPageClassicProps) {
           </div>
 
           {(toolbar || onAdd) && (
-            <div className="flex items-center gap-2 flex-wrap">
+            <div className="flex items-center gap-2 flex-wrap w-full md:w-auto">
               {toolbar?.map((b, i) => <ToolbarBtn key={i} btn={b} />)}
               {onAdd && (
                 <button
@@ -256,18 +256,21 @@ export function ABMPageClassic(props: ABMPageClassicProps) {
           )}
         </div>
 
-        {/* === Fila de filtros: chips + search + filtros + view toggle === */}
-        <div className="mt-5 flex items-center gap-2.5 flex-wrap">
+        {/* === Fila de filtros: chips + search + filtros + view toggle ===
+            Mobile: chips en scroll horizontal, search/filtros/toggle abajo en su propia fila.
+            Desktop (md+): todo en una sola fila con search a la derecha. */}
+        <div className="mt-5 flex flex-col md:flex-row md:items-center gap-2.5">
           {filterChips && filterChips.length > 0 && (
-            <div className="flex items-center gap-1.5 flex-wrap">
+            <div className="flex items-center gap-1.5 overflow-x-auto md:flex-wrap -mx-4 px-4 md:mx-0 md:px-0 scrollbar-hide">
               {filterChips.map((c) => (
-                <ABMFilterChip
-                  key={c.key}
-                  label={c.label}
-                  count={c.count}
-                  active={activeChip === c.key}
-                  onClick={() => onChipChange?.(c.key)}
-                />
+                <div key={c.key} className="flex-shrink-0">
+                  <ABMFilterChip
+                    label={c.label}
+                    count={c.count}
+                    active={activeChip === c.key}
+                    onClick={() => onChipChange?.(c.key)}
+                  />
+                </div>
               ))}
             </div>
           )}
@@ -276,8 +279,8 @@ export function ABMPageClassic(props: ABMPageClassicProps) {
             <div className="flex items-center gap-2 flex-wrap">{extraFilters}</div>
           )}
 
-          <div className="ml-auto flex items-center gap-2 flex-wrap">
-            <div className="relative">
+          <div className="md:ml-auto flex items-center gap-2 flex-wrap">
+            <div className="relative flex-1 md:flex-initial">
               <Search
                 className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4"
                 style={{ color: 'var(--ink-5)' }}
@@ -287,7 +290,7 @@ export function ABMPageClassic(props: ABMPageClassicProps) {
                 value={searchValue}
                 onChange={(e) => onSearchChange(e.target.value)}
                 placeholder={searchPlaceholder}
-                className="h-10 pl-9 pr-3 rounded-lg text-sm focus:outline-none w-56 md:w-64"
+                className="h-10 pl-9 pr-3 rounded-lg text-sm focus:outline-none w-full md:w-64"
                 style={{
                   backgroundColor: 'var(--surface)',
                   border: '1px solid var(--border-color)',
