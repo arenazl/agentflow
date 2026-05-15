@@ -171,27 +171,39 @@ export function DMO() {
   return (
     <div className="flex h-full min-h-0">
       <div className="flex-1 min-w-0 overflow-y-auto p-4 md:p-6 space-y-6">
-        {/* Header + timeline */}
-        <div>
-          <div className="flex items-center gap-3 mb-1">
-            <ClipboardList className="h-6 w-6" style={{ color: 'var(--color-accent)' }} />
-            <h1 className="text-2xl font-bold">Mi DMO de hoy</h1>
-          </div>
-          <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
-            {new Date(fecha).toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' })} · {now}
+        {/* Header editorial CB */}
+        <div className="flex flex-col gap-2">
+          <span className="eyebrow-line">
+            Mi DMO · {new Date(fecha).toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' })}
+          </span>
+          <h1
+            className="font-serif-display leading-none m-0 flex items-center gap-3"
+            style={{ fontSize: 'clamp(28px, 4.5vw, 40px)', color: 'var(--text-primary)' }}
+          >
+            <ClipboardList className="h-7 w-7" style={{ color: 'var(--color-accent)' }} />
+            Mi DMO de hoy
+          </h1>
+          <p className="text-sm flex items-center gap-2 flex-wrap" style={{ color: 'var(--text-secondary)' }}>
+            <span className="font-mono-tnum">{now}</span>
+            <span className="inline-block w-1 h-1 rounded-full" style={{ backgroundColor: 'var(--text-secondary)' }} />
+            <span
+              className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs"
+              style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-color)' }}
+            >
+              <GraduationCap className="h-3.5 w-3.5" style={{ color: 'var(--color-accent)' }} />
+              <span className="font-semibold" style={{ color: 'var(--text-primary)' }}>{data.template.nombre}</span>
+              {data.template.coach_nombre && (
+                <span>· {data.template.coach_nombre}</span>
+              )}
+            </span>
           </p>
-          <div className="mt-2 inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs"
-               style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-color)' }}>
-            <GraduationCap className="h-3.5 w-3.5" style={{ color: 'var(--color-accent)' }} />
-            <span className="font-semibold">{data.template.nombre}</span>
-            {data.template.coach_nombre && (
-              <span style={{ color: 'var(--text-secondary)' }}>· {data.template.coach_nombre}</span>
-            )}
-          </div>
         </div>
 
         {/* Timeline horizontal */}
         <TimelineHorizontal items={blockStatuses} nowMin={nowMin} />
+
+        {/* Focus card: bloque en curso */}
+        <FocusNowCard items={blockStatuses} logsByBloque={logsByBloque} nowMin={nowMin} />
 
         {/* KPIs */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -493,12 +505,9 @@ function TimelineHorizontal({
       className="rounded-xl border p-4"
       style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-color)' }}
     >
-      <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--text-secondary)' }}>
-          <Clock className="h-3.5 w-3.5" />
-          Línea del día
-        </div>
-        <div className="flex items-center gap-3 text-[10px]">
+      <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+        <span className="eyebrow-line">Línea del día</span>
+        <div className="flex items-center gap-3 text-[10px] font-mono-tnum">
           <LegendDot color="var(--color-success)" label="Completado" />
           <LegendDot color="var(--color-accent)" label="En curso" />
           <LegendDot color="var(--color-flame)" label="Vencido" />
@@ -533,8 +542,8 @@ function TimelineHorizontal({
               style={{ left: `${nowPct}%` }}
             >
               <div
-                className="text-[10px] font-bold px-2 py-0.5 rounded shadow-md whitespace-nowrap"
-                style={{ backgroundColor: 'var(--color-accent)', color: 'var(--color-primary)' }}
+                className="text-[10px] font-bold px-2 py-0.5 rounded shadow-md whitespace-nowrap font-mono-tnum tracking-wider"
+                style={{ backgroundColor: 'var(--gold-500)', color: 'var(--navy-900)' }}
               >
                 AHORA · {nowLabel}
               </div>
@@ -628,5 +637,105 @@ function LegendDot({ color, label }: { color: string; label: string }) {
       <span className="w-2 h-2 rounded-full" style={{ backgroundColor: color }} />
       {label}
     </span>
+  )
+}
+
+function FocusNowCard({
+  items, logsByBloque, nowMin,
+}: {
+  items: { bloque: DmoBloque; status: BlockStatus }[]
+  logsByBloque: Map<number, DmoLog>
+  nowMin: number
+}) {
+  const current = items.find((it) => it.status === 'now')
+  if (!current) return null
+
+  const b = current.bloque
+  const log = logsByBloque.get(b.id)
+  const valor = log?.valor_metrica ?? 0
+  const fin = hhmmToMin(b.hora_fin.slice(0, 5))
+  const remainingMin = Math.max(0, fin - nowMin)
+  const hh = Math.floor(remainingMin / 60)
+  const mm = remainingMin % 60
+  const remainLabel = hh > 0 ? `${hh}h ${String(mm).padStart(2, '0')}m` : `${mm}m`
+
+  const hasMetric = b.metrica_tipo === 'cantidad' && b.metrica_meta > 0
+  const pct = hasMetric ? Math.min(100, Math.round((valor / b.metrica_meta) * 100)) : null
+
+  const scrollToBlock = () => {
+    const el = document.getElementById(`dmo-bloque-${b.id}`)
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
+
+  return (
+    <div
+      className="relative overflow-hidden rounded-xl p-6 md:p-7"
+      style={{
+        background: 'linear-gradient(135deg, var(--navy-900) 0%, var(--navy-800) 50%, var(--navy-700) 100%)',
+        color: '#fff',
+        border: '1px solid var(--navy-700)',
+      }}
+    >
+      <div
+        className="pointer-events-none absolute -top-1/2 -right-[10%] w-3/5 h-[200%]"
+        style={{ background: 'radial-gradient(ellipse, rgba(201,161,88,0.18), transparent 60%)' }}
+      />
+      <div className="relative flex flex-col gap-2">
+        <span className="eyebrow-line" style={{ color: 'var(--gold-400)' }}>
+          Tu enfoque ahora
+        </span>
+        <h2
+          className="font-serif-display leading-tight m-0"
+          style={{ fontSize: 'clamp(24px, 3.6vw, 32px)', color: '#fff' }}
+        >
+          {b.nombre}
+        </h2>
+        <div className="font-mono-tnum text-sm" style={{ color: 'var(--gold-300)' }}>
+          {b.hora_inicio.slice(0, 5)} – {b.hora_fin.slice(0, 5)} · faltan {remainLabel}
+        </div>
+        {b.descripcion && (
+          <p className="text-sm leading-relaxed max-w-xl m-0 mt-1" style={{ color: 'rgba(255,255,255,0.78)' }}>
+            {b.descripcion}
+          </p>
+        )}
+
+        {hasMetric && (
+          <div className="mt-3 flex items-center gap-3">
+            <div
+              className="flex-1 h-1.5 rounded-full overflow-hidden"
+              style={{ backgroundColor: 'rgba(255,255,255,0.12)' }}
+            >
+              <div
+                className="h-full rounded-full transition-all duration-500"
+                style={{
+                  width: `${pct}%`,
+                  background: 'linear-gradient(90deg, var(--gold-500), var(--gold-400))',
+                  boxShadow: '0 0 12px rgba(220, 186, 126, 0.4)',
+                }}
+              />
+            </div>
+            <div className="font-mono-tnum text-sm font-semibold" style={{ color: '#fff' }}>
+              {valor}<span style={{ color: 'var(--gold-400)' }}> / {b.metrica_meta}</span>
+            </div>
+          </div>
+        )}
+
+        <div className="mt-4 flex items-center gap-3 flex-wrap">
+          <button
+            type="button"
+            onClick={scrollToBlock}
+            className="inline-flex items-center gap-2 h-10 px-4 rounded-lg text-sm font-semibold active:scale-95 transition-all duration-200"
+            style={{
+              backgroundColor: 'var(--gold-500)',
+              color: 'var(--navy-900)',
+              border: '1px solid var(--gold-600)',
+            }}
+          >
+            <Check className="h-4 w-4" />
+            Ir al bloque
+          </button>
+        </div>
+      </div>
+    </div>
   )
 }

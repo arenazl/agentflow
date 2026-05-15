@@ -16,6 +16,13 @@ const ETAPA_LABEL: Record<string, string> = {
   escrituracion: 'Escritura',
 }
 
+function greeting() {
+  const h = new Date().getHours()
+  if (h < 12) return 'Buen día'
+  if (h < 19) return 'Buenas tardes'
+  return 'Buenas noches'
+}
+
 const ETAPA_COLOR: Record<string, string> = {
   captado:        'var(--text-secondary)',
   publicado:      'var(--color-blue)',
@@ -42,13 +49,14 @@ function Sparkline({ values, color }: { values: number[]; color: string }) {
   )
 }
 
-function KpiCard({ icon: Icon, label, value, sub, trend, accent }: {
+function KpiCard({ icon: Icon, label, value, sub, trend, accent, feature }: {
   icon: any
   label: string
   value: string | number
   sub?: string
   trend?: number[]
   accent?: 'primary' | 'accent' | 'flame' | 'success'
+  feature?: boolean
 }) {
   const colors = {
     primary: 'var(--color-primary)',
@@ -57,6 +65,43 @@ function KpiCard({ icon: Icon, label, value, sub, trend, accent }: {
     success: 'var(--color-success)',
   }
   const color = colors[accent ?? 'primary']
+
+  if (feature) {
+    return (
+      <div
+        className="relative overflow-hidden rounded-xl p-5 transition-all duration-200 hover:-translate-y-0.5"
+        style={{
+          background: 'linear-gradient(135deg, var(--navy-900) 0%, var(--navy-800) 50%, var(--navy-700) 100%)',
+          color: '#fff',
+          border: '1px solid var(--navy-700)',
+        }}
+      >
+        <div
+          className="pointer-events-none absolute -top-1/2 -right-[10%] w-1/2 h-[200%]"
+          style={{ background: 'radial-gradient(ellipse, rgba(201,161,88,0.20), transparent 60%)' }}
+        />
+        <div className="relative flex items-start justify-between gap-3">
+          <div
+            className="flex-shrink-0 p-2 rounded-lg"
+            style={{ backgroundColor: 'rgba(201,161,88,0.18)', color: 'var(--gold-400)' }}
+          >
+            <Icon className="h-5 w-5" />
+          </div>
+          {trend && <Sparkline values={trend} color="var(--gold-400)" />}
+        </div>
+        <div
+          className="uppercase-label mt-3 relative"
+          style={{ color: 'var(--gold-300)' }}
+        >{label}</div>
+        <div
+          className="font-serif-display tnum leading-none mt-1 relative"
+          style={{ fontSize: '40px', color: '#fff' }}
+        >{value}</div>
+        {sub && <div className="text-xs mt-1 relative" style={{ color: 'var(--gold-300)' }}>{sub}</div>}
+      </div>
+    )
+  }
+
   return (
     <div
       className="rounded-xl border p-4 transition-all duration-200 hover:-translate-y-0.5"
@@ -71,9 +116,12 @@ function KpiCard({ icon: Icon, label, value, sub, trend, accent }: {
         </div>
         {trend && <Sparkline values={trend} color={color} />}
       </div>
-      <div className="text-xs uppercase tracking-wider mt-3" style={{ color: 'var(--text-secondary)' }}>{label}</div>
-      <div className="text-2xl font-bold leading-tight" style={{ color: 'var(--text-primary)' }}>{value}</div>
-      {sub && <div className="text-xs mt-0.5" style={{ color: 'var(--text-secondary)' }}>{sub}</div>}
+      <div className="uppercase-label mt-3">{label}</div>
+      <div
+        className="font-serif-display tnum leading-none mt-1"
+        style={{ fontSize: '32px', color: 'var(--text-primary)' }}
+      >{value}</div>
+      {sub && <div className="text-xs mt-1" style={{ color: 'var(--text-secondary)' }}>{sub}</div>}
     </div>
   )
 }
@@ -128,16 +176,39 @@ export function Dashboard() {
   return (
     <div className="flex h-full min-h-0">
       <div className="flex-1 min-w-0 overflow-y-auto p-4 md:p-6 space-y-6">
-        <div>
-          <h1 className="text-2xl font-bold">Hola, {user?.nombre}.</h1>
-          <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
+        <div className="flex flex-col gap-2">
+          <span className="eyebrow-line">
+            Dashboard · {new Date().toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' })}
+          </span>
+          <h1
+            className="font-serif-display leading-none m-0"
+            style={{ fontSize: 'clamp(32px, 5vw, 44px)', color: 'var(--text-primary)' }}
+          >
+            {greeting()}, {user?.nombre}.
+          </h1>
+          <p className="text-sm flex items-center gap-2 flex-wrap" style={{ color: 'var(--text-secondary)' }}>
             {user?.role === 'vendedor' ? 'Tu resumen del día.' : 'Resumen general de la oficina.'}
+            <span
+              className="inline-flex items-center gap-2 px-3 h-7 rounded-full text-xs font-medium"
+              style={{
+                backgroundColor: 'var(--bg-card)',
+                border: '1px solid var(--border-color)',
+                color: 'var(--text-primary)',
+              }}
+            >
+              <span
+                className="relative inline-block w-2 h-2 rounded-full"
+                style={{ backgroundColor: 'var(--color-success)' }}
+              />
+              {totalPipeline} deals abiertos
+            </span>
           </p>
         </div>
 
         {/* KPI row */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
           <KpiCard
+            feature
             icon={MessageSquare}
             label="Conversaciones hoy"
             value={`${data.conversaciones_hoy} / ${data.meta_conversaciones}`}
