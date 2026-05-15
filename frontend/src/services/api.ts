@@ -96,6 +96,9 @@ export const dmoAssignmentsAPI = {
 
 export const usersAPI = {
   list: () => api.get('/users/'),
+  me: () => api.get('/users/me'),
+  updateMe: (data: any) => api.patch('/users/me', data),
+  update: (id: number, data: any) => api.patch(`/users/${id}`, data),
   setAvailability: (is_available: boolean) => api.patch('/users/me/availability', { is_available }),
 }
 

@@ -4,6 +4,7 @@ export interface User {
   nombre: string
   apellido: string
   telefono?: string | null
+  telefono_personal?: string | null
   foto_url?: string | null
   role: 'admin' | 'gerente' | 'vendedor'
   meta_conversaciones_diaria: number

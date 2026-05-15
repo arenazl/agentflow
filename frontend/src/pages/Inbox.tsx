@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
 import {
   MessageSquare, Send, Search, Phone, User as UserIcon,
@@ -43,9 +44,13 @@ function formatFechaSeparator(iso: string): string {
 
 export function Inbox() {
   const { user } = useAuth()
+  const [searchParams, setSearchParams] = useSearchParams()
   const [conversations, setConversations] = useState<WhatsappConversation[]>([])
   const [loading, setLoading] = useState(true)
-  const [selectedId, setSelectedId] = useState<number | null>(null)
+  const [selectedId, setSelectedId] = useState<number | null>(() => {
+    const q = searchParams.get('conv')
+    return q ? parseInt(q, 10) : null
+  })
   const [detail, setDetail] = useState<WhatsappConversationDetail | null>(null)
   const [filter, setFilter] = useState<Filter>('todas')
   const [search, setSearch] = useState('')
@@ -83,11 +88,24 @@ export function Inbox() {
   }, [])
 
   // Auto-seleccionar la primera conversación cuando termina de cargar
+  // Si hay ?conv=X en la URL, respetamos esa
   useEffect(() => {
-    if (!loading && selectedId === null && conversations.length > 0) {
+    if (loading || conversations.length === 0) return
+    const fromQuery = searchParams.get('conv')
+    if (fromQuery) {
+      const id = parseInt(fromQuery, 10)
+      if (conversations.some((c) => c.id === id)) {
+        setSelectedId(id)
+        // Limpiar el query param para que no quede pegado en la URL
+        searchParams.delete('conv')
+        setSearchParams(searchParams, { replace: true })
+        return
+      }
+    }
+    if (selectedId === null) {
       setSelectedId(conversations[0].id)
     }
-  }, [loading, conversations, selectedId])
+  }, [loading, conversations, selectedId, searchParams, setSearchParams])
 
   useEffect(() => { if (selectedId) loadDetail(selectedId) }, [selectedId])
 
@@ -151,11 +169,14 @@ export function Inbox() {
     } catch { toast.error('Error al cambiar estado') }
   }
 
+  // Mobile: si hay conv seleccionada mostramos solo el chat (no la lista)
+  const showListOnMobile = selectedId === null
+
   return (
     <div className="flex h-full min-h-0">
-      {/* Lista de conversaciones */}
+      {/* Lista de conversaciones — en mobile: full width si no hay seleccion, oculta si hay */}
       <aside
-        className="flex-shrink-0 w-80 lg:w-96 flex flex-col border-r"
+        className={`flex-shrink-0 ${showListOnMobile ? 'flex' : 'hidden'} md:flex w-full md:w-80 lg:w-96 flex-col border-r`}
         style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-color)' }}
       >
         <header className="flex-shrink-0 p-4 border-b" style={{ borderColor: 'var(--border-color)' }}>

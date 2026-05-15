@@ -435,8 +435,8 @@ async def webhook_incoming(
                         f"[AgentFlow] Nuevo lead asignado\n\n"
                         f"Cliente: {contacto_label}\n"
                         f"Lo que pregunto:\n{resumen}\n\n"
-                        f"Abri el Inbox para responder:\n"
-                        f"https://agentflow-beyker.netlify.app/inbox"
+                        f"Abri esta conversacion para responder:\n"
+                        f"https://agentflow-beyker.netlify.app/inbox?conv={c.id}"
                     )
                     try:
                         await _send_via_baileys(db, agente.telefono_personal, notif_msg)

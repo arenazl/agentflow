@@ -44,6 +44,37 @@ async def create_user(
     return u
 
 
+@router.get("/me", response_model=UserResponse)
+async def get_me(
+    db: AsyncSession = Depends(get_db),
+    current: User = Depends(get_current_user),
+):
+    """Devuelve los datos del usuario logueado."""
+    result = await db.execute(select(User).where(User.id == current.id))
+    return result.scalar_one()
+
+
+@router.patch("/me", response_model=UserResponse)
+async def update_me(
+    payload: UserUpdate,
+    db: AsyncSession = Depends(get_db),
+    current: User = Depends(get_current_user),
+):
+    """Permite que el usuario logueado edite su propio perfil.
+    No puede cambiar role ni is_active (campos administrativos)."""
+    result = await db.execute(select(User).where(User.id == current.id))
+    u = result.scalar_one()
+    data = payload.model_dump(exclude_unset=True)
+    # Campos que solo admin/gerente puede tocar de otros, no permitir self-edit
+    for protected in ("is_active",):
+        data.pop(protected, None)
+    for k, v in data.items():
+        setattr(u, k, v)
+    await db.commit()
+    await db.refresh(u)
+    return u
+
+
 @router.patch("/me/availability", response_model=UserResponse)
 async def set_availability(
     payload: AvailabilityUpdate,
