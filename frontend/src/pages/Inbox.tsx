@@ -9,6 +9,7 @@ import {
 import { whatsappAPI, usersAPI } from '../services/api'
 import { useAuth } from '../contexts/AuthContext'
 import { Skeleton } from '../components/ui/Skeleton'
+import { ABMFilterChip } from '../components/ui/classic'
 import type {
   WhatsappConversation, WhatsappConversationDetail, WaConvEstado, User,
 } from '../types'
@@ -181,63 +182,80 @@ export function Inbox() {
         style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-color)' }}
       >
         <header className="flex-shrink-0 p-4 border-b" style={{ borderColor: 'var(--border-color)' }}>
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-2">
-              <MessageSquare className="h-5 w-5" style={{ color: 'var(--color-accent)' }} />
-              <h1 className="font-bold text-lg">Inbox</h1>
-              <span
-                className="text-xs px-2 py-0.5 rounded-full font-semibold"
-                style={{ backgroundColor: 'var(--bg-hover)', color: 'var(--text-secondary)' }}
-              >
-                {conversations.length}
-              </span>
+          <div className="flex items-start justify-between mb-3 gap-2">
+            <div className="flex flex-col gap-1 min-w-0">
+              <span className="eyebrow-line" style={{ fontSize: 10 }}>Operación · WhatsApp</span>
+              <div className="flex items-baseline gap-2">
+                <h1
+                  className="font-serif-display leading-none m-0"
+                  style={{ fontSize: 26, color: 'var(--text-primary)' }}
+                >
+                  Inbox
+                </h1>
+                <span
+                  className="font-mono-tnum text-[11px] px-1.5 py-0.5 rounded font-bold"
+                  style={{ backgroundColor: 'var(--gold-100)', color: 'var(--gold-700)' }}
+                >
+                  {conversations.length}
+                </span>
+              </div>
             </div>
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-1 flex-shrink-0">
               <button
                 onClick={load}
-                className="p-1.5 rounded hover:bg-[var(--bg-hover)]"
+                className="p-1.5 rounded transition-colors"
+                style={{ color: 'var(--ink-4)' }}
+                onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = 'var(--surface-3)' }}
+                onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = 'transparent' }}
                 title="Refrescar"
               >
                 <RefreshCw className="h-4 w-4" />
               </button>
               <button
                 onClick={() => setMockOpen(true)}
-                className="p-1.5 rounded hover:bg-[var(--bg-hover)]"
+                className="p-1.5 rounded transition-colors"
+                style={{ color: 'var(--gold-600)' }}
+                onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = 'var(--surface-3)' }}
+                onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = 'transparent' }}
                 title="Simular mensaje entrante (demo)"
               >
-                <PlusCircle className="h-4 w-4" style={{ color: 'var(--color-accent)' }} />
+                <PlusCircle className="h-4 w-4" />
               </button>
             </div>
           </div>
           <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4" style={{ color: 'var(--text-secondary)' }} />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4" style={{ color: 'var(--ink-5)' }} />
             <input
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Buscar..."
-              className="w-full pl-10 pr-3 py-2 rounded-lg border bg-[var(--bg-app)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
-              style={{ borderColor: 'var(--border-color)' }}
+              placeholder="Buscar nombre, teléfono..."
+              className="w-full h-10 pl-10 pr-3 rounded-lg text-sm focus:outline-none"
+              style={{
+                backgroundColor: 'var(--surface)',
+                border: '1px solid var(--border-color)',
+                color: 'var(--text-primary)',
+              }}
             />
           </div>
-          <div className="flex items-center gap-1 mt-3 flex-wrap">
-            {(['todas', 'mias', 'nuevas', 'sin_asignar'] as Filter[]).map((f) => (
-              <button
-                key={f}
-                onClick={() => setFilter(f)}
-                className="flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium transition-all duration-200"
-                style={{
-                  backgroundColor: filter === f ? 'var(--color-accent)' : 'var(--bg-hover)',
-                  color: filter === f ? 'var(--color-primary)' : 'var(--text-secondary)',
-                }}
-              >
-                {f === 'todas' && 'Todas'}
-                {f === 'mias' && 'Mías'}
-                {f === 'nuevas' && 'Nuevas'}
-                {f === 'sin_asignar' && 'Sin asignar'}
-                <span className="font-bold">{counts[f]}</span>
-              </button>
-            ))}
+          <div className="flex items-center gap-1.5 mt-3 flex-wrap">
+            {(['todas', 'mias', 'nuevas', 'sin_asignar'] as Filter[]).map((f) => {
+              const labels: Record<Filter, string> = {
+                todas: 'Todas',
+                mias: 'Mías',
+                nuevas: 'Nuevas',
+                sin_asignar: 'Sin asignar',
+              }
+              return (
+                <ABMFilterChip
+                  key={f}
+                  label={labels[f]}
+                  count={counts[f]}
+                  active={filter === f}
+                  onClick={() => setFilter(f)}
+                />
+              )
+            })}
           </div>
         </header>
 

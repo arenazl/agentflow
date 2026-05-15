@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { ClipboardList, Check, Flame, Clock, GraduationCap, AlertCircle } from 'lucide-react'
+import { ClipboardList, Check, Flame, Clock, GraduationCap, AlertCircle, Calendar as CalendarIcon, Sparkles } from 'lucide-react'
 import { toast } from 'sonner'
 import { Link } from 'react-router-dom'
 import { dmoAPI } from '../services/api'
@@ -172,31 +172,54 @@ export function DMO() {
     <div className="flex h-full min-h-0">
       <div className="flex-1 min-w-0 overflow-y-auto p-4 md:p-6 space-y-6">
         {/* Header editorial CB */}
-        <div className="flex flex-col gap-2">
-          <span className="eyebrow-line">
-            Mi DMO · {new Date(fecha).toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' })}
-          </span>
-          <h1
-            className="font-serif-display leading-none m-0 flex items-center gap-3"
-            style={{ fontSize: 'clamp(28px, 4.5vw, 40px)', color: 'var(--text-primary)' }}
-          >
-            <ClipboardList className="h-7 w-7" style={{ color: 'var(--color-accent)' }} />
-            Mi DMO de hoy
-          </h1>
-          <p className="text-sm flex items-center gap-2 flex-wrap" style={{ color: 'var(--text-secondary)' }}>
-            <span className="font-mono-tnum">{now}</span>
-            <span className="inline-block w-1 h-1 rounded-full" style={{ backgroundColor: 'var(--text-secondary)' }} />
-            <span
-              className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs"
-              style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-color)' }}
-            >
-              <GraduationCap className="h-3.5 w-3.5" style={{ color: 'var(--color-accent)' }} />
-              <span className="font-semibold" style={{ color: 'var(--text-primary)' }}>{data.template.nombre}</span>
-              {data.template.coach_nombre && (
-                <span>· {data.template.coach_nombre}</span>
-              )}
+        <div className="flex items-end justify-between gap-5 flex-wrap">
+          <div className="flex flex-col gap-2 min-w-0">
+            <span className="eyebrow-line">
+              Mi DMO · {new Date(fecha).toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' })}
             </span>
-          </p>
+            <h1
+              className="font-serif-display leading-none m-0"
+              style={{ fontSize: 'clamp(32px, 5vw, 44px)', color: 'var(--text-primary)' }}
+            >
+              Mi DMO de hoy
+            </h1>
+            <p className="text-sm flex items-center gap-2 flex-wrap m-0" style={{ color: 'var(--ink-3)' }}>
+              <span className="font-mono-tnum">{now}</span>
+              <span className="inline-block w-1 h-1 rounded-full" style={{ backgroundColor: 'var(--ink-5)' }} />
+              <span
+                className="inline-flex items-center gap-2 px-3 h-7 rounded-full text-xs font-medium"
+                style={{ backgroundColor: 'var(--surface)', border: '1px solid var(--border-color)', color: 'var(--text-primary)' }}
+              >
+                <GraduationCap className="h-3.5 w-3.5" style={{ color: 'var(--gold-600)' }} />
+                <strong style={{ fontWeight: 600 }}>{data.template.nombre}</strong>
+                {data.template.coach_nombre && <span style={{ color: 'var(--ink-4)' }}>· {data.template.coach_nombre}</span>}
+              </span>
+              <span
+                className="inline-flex items-center gap-2 px-3 h-7 rounded-full text-xs font-medium"
+                style={{ backgroundColor: 'var(--surface)', border: '1px solid var(--border-color)', color: 'var(--text-primary)' }}
+              >
+                <span className="relative inline-block w-2 h-2 rounded-full" style={{ backgroundColor: 'var(--color-success)' }} />
+                <strong style={{ fontWeight: 600 }}>{data.logs.filter((l) => l.completado).length} de {data.bloques.length}</strong>
+                <span style={{ color: 'var(--ink-4)' }}>bloques · {data.pct_completitud}% completitud</span>
+              </span>
+            </p>
+          </div>
+          <div className="flex items-center gap-2 flex-wrap">
+            <button
+              className="inline-flex items-center gap-2 h-10 px-4 rounded-lg text-sm font-medium"
+              style={{ backgroundColor: 'var(--surface)', color: 'var(--ink-2)', border: '1px solid var(--border-color)' }}
+              onClick={() => toast.info('Selector de día — próximamente')}
+            >
+              <CalendarIcon className="h-4 w-4" /> Cambiar día
+            </button>
+            <button
+              className="inline-flex items-center gap-2 h-10 px-4 rounded-lg text-sm font-semibold"
+              style={{ backgroundColor: 'var(--navy-800)', color: '#fff', border: '1px solid var(--navy-800)' }}
+              onClick={() => toast.info('Coach sesión 1:1 — próximamente')}
+            >
+              <Sparkles className="h-4 w-4" /> Coach sesión 1:1
+            </button>
+          </div>
         </div>
 
         {/* Timeline horizontal */}
