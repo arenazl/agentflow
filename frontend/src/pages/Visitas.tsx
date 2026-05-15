@@ -1,8 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Calendar, Mic } from 'lucide-react'
+import { Mic } from 'lucide-react'
 import { toast } from 'sonner'
-import { ABMPage } from '../components/ui/ABMPage'
-import { ABMTable, ABMColumn } from '../components/ui/ABMTable'
+import {
+  ABMPageClassic, ABMTableClassic, ABMBadgeClassic,
+  type ABMColumnClassic, type ViewMode,
+  TOOLBAR_EXPORT,
+} from '../components/ui/classic'
 import { SideModal } from '../components/SideModal'
 import { VoiceInputButton } from '../components/VoiceInputButton'
 import { AICoachPanel } from '../components/AICoachPanel'
@@ -10,19 +13,19 @@ import { SkeletonTable } from '../components/ui/Skeleton'
 import { visitasAPI } from '../services/api'
 import type { Visita } from '../types'
 
-const ESTADO_COLOR: Record<string, string> = {
-  agendada: 'bg-blue-100 text-blue-700',
-  concretada: 'bg-green-100 text-green-700',
-  cancelada: 'bg-red-100 text-red-700',
-  ausente: 'bg-orange-100 text-orange-700',
+const ESTADO_BADGE: Record<string, 'info'|'success'|'danger'|'warning'|'neutral'> = {
+  agendada:   'info',
+  concretada: 'success',
+  cancelada:  'danger',
+  ausente:    'warning',
 }
 
-const RESULTADO_COLOR: Record<string, string> = {
-  interesado: 'bg-green-50 text-green-700',
-  no_interesado: 'bg-red-50 text-red-700',
-  hizo_oferta: 'bg-purple-50 text-purple-700',
-  indeciso: 'bg-yellow-50 text-yellow-700',
-  sin_resultado: 'bg-gray-50 text-gray-600',
+const RESULTADO_BADGE: Record<string, 'success'|'danger'|'gold'|'warning'|'neutral'> = {
+  interesado:     'success',
+  no_interesado:  'danger',
+  hizo_oferta:    'gold',
+  indeciso:       'warning',
+  sin_resultado:  'neutral',
 }
 
 function formatFecha(iso: string) {
@@ -30,39 +33,97 @@ function formatFecha(iso: string) {
   return d.toLocaleString('es-AR', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' })
 }
 
+/* ---- Mock ---- */
+function mockVisita(i: number, over: Partial<Visita>): Visita {
+  return {
+    id: -i,
+    cliente_id: -i, cliente_nombre: '',
+    propiedad_id: -i, propiedad_titulo: '',
+    vendedor_id: 1, vendedor_nombre: 'Patricio B.',
+    fecha_hora: new Date().toISOString(),
+    estado: 'agendada',
+    resultado: 'sin_resultado',
+    notas_voz: null,
+    created_at: new Date().toISOString(),
+    ...over,
+  } as Visita
+}
+const MOCK: Visita[] = [
+  mockVisita(1, { cliente_nombre: 'Familia Vázquez',    propiedad_titulo: 'Av. Libertador 4820 · 3°B',  fecha_hora: new Date(Date.now() +  3 * 3600000).toISOString(),   estado: 'agendada',   resultado: 'sin_resultado' }),
+  mockVisita(2, { cliente_nombre: 'Pereyra / Ríos',     propiedad_titulo: 'Vidal 1944 · PH',            fecha_hora: new Date(Date.now() +  5 * 3600000).toISOString(),   estado: 'agendada',   resultado: 'sin_resultado' }),
+  mockVisita(3, { cliente_nombre: 'María Solís',        propiedad_titulo: 'Caballito · 3 amb',           fecha_hora: new Date(Date.now() - 26 * 3600000).toISOString(),   estado: 'concretada', resultado: 'interesado' }),
+  mockVisita(4, { cliente_nombre: 'Daniela Cattáneo',   propiedad_titulo: 'Arenales 2230 · 5°C',         fecha_hora: new Date(Date.now() + 48 * 3600000).toISOString(),   estado: 'agendada',   resultado: 'sin_resultado' }),
+  mockVisita(5, { cliente_nombre: 'Juan Pellegrini',    propiedad_titulo: 'Belgrano · 2 amb',            fecha_hora: new Date(Date.now() - 50 * 3600000).toISOString(),   estado: 'concretada', resultado: 'hizo_oferta' }),
+  mockVisita(6, { cliente_nombre: 'Lucía y M. Argerich', propiedad_titulo: 'Caballito · 3 amb',          fecha_hora: new Date(Date.now() - 70 * 3600000).toISOString(),   estado: 'cancelada',  resultado: 'no_interesado' }),
+  mockVisita(7, { cliente_nombre: 'Carolina Beltrán',   propiedad_titulo: 'Belgrano R · 4 amb',          fecha_hora: new Date(Date.now() + 72 * 3600000).toISOString(),   estado: 'agendada',   resultado: 'sin_resultado', vendedor_nombre: 'Martín Cravero' }),
+  mockVisita(8, { cliente_nombre: 'Estudio Vrancken',   propiedad_titulo: 'Núñez · local comercial',     fecha_hora: new Date(Date.now() - 8  * 3600000).toISOString(),   estado: 'concretada', resultado: 'indeciso',     vendedor_nombre: 'Florencia Reig' }),
+]
+
 export function Visitas() {
-  const [data, setData] = useState<Visita[]>([])
+  const [serverData, setServerData] = useState<Visita[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
+  const [activeChip, setActiveChip] = useState('todas')
+  const [view, setView] = useState<ViewMode>(() => (localStorage.getItem('visitas:view') as ViewMode) || 'table')
   const [editing, setEditing] = useState<Visita | null>(null)
+
+  useEffect(() => { localStorage.setItem('visitas:view', view) }, [view])
 
   const load = async () => {
     setLoading(true)
     try {
       const r = await visitasAPI.list()
-      setData(r.data)
+      setServerData(r.data)
     } catch { toast.error('Error al cargar visitas') }
     finally { setLoading(false) }
   }
   useEffect(() => { load() }, [])
 
-  const filtered = data.filter((v) => {
-    const q = search.toLowerCase()
-    return (v.cliente_nombre ?? '').toLowerCase().includes(q) ||
-           (v.propiedad_titulo ?? '').toLowerCase().includes(q)
-  })
+  const usingMock = !loading && serverData.length === 0
+  const data = usingMock ? MOCK : serverData
 
-  const columns: ABMColumn<Visita>[] = [
-    { key: 'fecha_hora', header: 'Fecha y hora', sortable: true, sortValue: (v) => v.fecha_hora, render: (v) => formatFecha(v.fecha_hora) },
-    { key: 'cliente', header: 'Cliente', render: (v) => v.cliente_nombre ?? '—' },
+  const baseFiltered = useMemo(() => {
+    const q = search.toLowerCase()
+    if (!q) return data
+    return data.filter((v) =>
+      (v.cliente_nombre   ?? '').toLowerCase().includes(q) ||
+      (v.propiedad_titulo ?? '').toLowerCase().includes(q),
+    )
+  }, [data, search])
+
+  const counts = useMemo(() => {
+    const now = Date.now()
+    return {
+      todas:        baseFiltered.length,
+      proximas:     baseFiltered.filter((v) => v.estado === 'agendada' && new Date(v.fecha_hora).getTime() > now).length,
+      concretadas:  baseFiltered.filter((v) => v.estado === 'concretada').length,
+      canceladas:   baseFiltered.filter((v) => v.estado === 'cancelada').length,
+    }
+  }, [baseFiltered])
+
+  const filtered = useMemo(() => {
+    const now = Date.now()
+    switch (activeChip) {
+      case 'proximas':    return baseFiltered.filter((v) => v.estado === 'agendada' && new Date(v.fecha_hora).getTime() > now)
+      case 'concretadas': return baseFiltered.filter((v) => v.estado === 'concretada')
+      case 'canceladas':  return baseFiltered.filter((v) => v.estado === 'cancelada')
+      default:            return baseFiltered
+    }
+  }, [baseFiltered, activeChip])
+
+  const columns: ABMColumnClassic<Visita>[] = [
+    {
+      key: 'fecha_hora',
+      header: 'Fecha y hora',
+      sortable: true,
+      sortValue: (v) => v.fecha_hora,
+      render: (v) => <span className="font-mono-tnum text-xs" style={{ color: 'var(--ink-3)' }}>{formatFecha(v.fecha_hora)}</span>,
+    },
+    { key: 'cliente',   header: 'Cliente',   render: (v) => <span className="font-semibold" style={{ color: 'var(--text-primary)' }}>{v.cliente_nombre ?? '—'}</span> },
     { key: 'propiedad', header: 'Propiedad', render: (v) => <span className="truncate block max-w-xs">{v.propiedad_titulo ?? '—'}</span> },
-    { key: 'estado', header: 'Estado', render: (v) => (
-      <span className={`text-xs px-2 py-0.5 rounded font-medium ${ESTADO_COLOR[v.estado] ?? ''}`}>{v.estado}</span>
-    ) },
-    { key: 'resultado', header: 'Resultado', render: (v) => (
-      <span className={`text-xs px-2 py-0.5 rounded ${RESULTADO_COLOR[v.resultado] ?? ''}`}>{v.resultado.replace('_', ' ')}</span>
-    ) },
-    { key: 'vendedor', header: 'Vendedor', render: (v) => v.vendedor_nombre ?? '—' },
+    { key: 'estado',    header: 'Estado',    render: (v) => <ABMBadgeClassic label={v.estado} tone={ESTADO_BADGE[v.estado] ?? 'neutral'} /> },
+    { key: 'resultado', header: 'Resultado', render: (v) => <ABMBadgeClassic label={v.resultado.replace('_', ' ')} tone={RESULTADO_BADGE[v.resultado] ?? 'neutral'} /> },
+    { key: 'vendedor',  header: 'Vendedor',  render: (v) => v.vendedor_nombre ?? '—' },
   ]
 
   const submit = async () => {
@@ -98,28 +159,47 @@ export function Visitas() {
   return (
     <div className="flex h-full min-h-0">
       <div className="flex-1 min-w-0 flex flex-col p-4 md:p-6">
-      <ABMPage
+      <ABMPageClassic
+        eyebrow="Cartera · Agenda"
         title="Visitas"
-        icon={<Calendar className="h-6 w-6" />}
+        subtitleParts={[
+          { strong: counts.todas,       label: 'visitas en agenda' },
+          { strong: counts.proximas,    label: 'próximas' },
+          { strong: counts.concretadas, label: 'concretadas' },
+        ]}
+        filterChips={[
+          { key: 'todas',       label: 'Todas',       count: counts.todas       },
+          { key: 'proximas',    label: 'Próximas',    count: counts.proximas    },
+          { key: 'concretadas', label: 'Concretadas', count: counts.concretadas },
+          { key: 'canceladas',  label: 'Canceladas',  count: counts.canceladas  },
+        ]}
+        activeChip={activeChip}
+        onChipChange={setActiveChip}
         searchValue={search}
         onSearchChange={setSearch}
         searchPlaceholder="Buscar por cliente o propiedad..."
-        loading={false}
+        toolbar={[
+          { ...TOOLBAR_EXPORT, variant: 'outline', onClick: () => toast.info('Exportar — próximamente') },
+        ]}
+        onAdd={() => toast.info('Alta de visita — próximamente')}
+        addLabel="Agendar visita"
+        view={view}
+        onViewChange={setView}
+        loading={loading}
         isEmpty={!loading && filtered.length === 0}
-        buttonLabel="Agendar visita"
-        onAdd={() => toast.info('Alta de visita: pendiente (demo)')}
+        emptyMessage="No hay visitas con esos filtros."
       >
         {loading ? (
           <SkeletonTable rows={8} cols={6} />
         ) : (
-          <ABMTable
+          <ABMTableClassic
             data={filtered}
             columns={columns}
             keyExtractor={(v) => v.id}
-            onEdit={(v) => setEditing({ ...v })}
+            onRowClick={(v) => setEditing({ ...v })}
           />
         )}
-      </ABMPage>
+      </ABMPageClassic>
 
       <SideModal
         isOpen={!!editing}

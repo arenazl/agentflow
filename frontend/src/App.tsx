@@ -1,5 +1,6 @@
 import { Routes, Route, Navigate } from 'react-router-dom'
-import { Layout } from './components/Layout'
+// Template Classic (CB editorial). Para revertir al layout original: cambiar a './components/Layout'
+import { LayoutClassic as Layout } from './components/LayoutClassic'
 import { ThemedToaster } from './components/ThemedToaster'
 import { PushOptIn } from './components/PushOptIn'
 import { useAuth } from './contexts/AuthContext'

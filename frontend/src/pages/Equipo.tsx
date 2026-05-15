@@ -41,14 +41,17 @@ export function Equipo() {
 
   return (
     <div className="flex flex-col h-full min-h-0 p-4 md:p-6 overflow-y-auto">
-      <div className="flex items-center gap-3 mb-6">
-        <Users className="h-6 w-6" style={{ color: 'var(--color-accent)' }} />
-        <div>
-          <h1 className="text-2xl font-bold">Equipo de vendedores</h1>
-          <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
-            Gestioná los WhatsApps de cada vendedor y su disponibilidad
-          </p>
-        </div>
+      <div className="flex flex-col gap-2 mb-6">
+        <span className="eyebrow-line">Equipo · Operaciones</span>
+        <h1
+          className="font-serif-display leading-none m-0"
+          style={{ fontSize: 'clamp(28px, 4.5vw, 44px)', color: 'var(--text-primary)' }}
+        >
+          Equipo de vendedores
+        </h1>
+        <p className="text-sm m-0" style={{ color: 'var(--ink-4)' }}>
+          Gestioná los WhatsApps de cada vendedor y su disponibilidad
+        </p>
       </div>
 
       {loading ? (

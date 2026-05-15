@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
-import { UserCog, GraduationCap, Star } from 'lucide-react'
+import { GraduationCap, Star } from 'lucide-react'
 import { dmoAssignmentsAPI, dmoTemplatesAPI, usersAPI } from '../services/api'
 import { SkeletonTable } from '../components/ui/Skeleton'
 import { ModernSelect } from '../components/ui/ModernSelect'
@@ -55,14 +55,17 @@ export function AsignacionesDMO() {
 
   return (
     <div className="flex flex-col h-full min-h-0 p-4 md:p-6 overflow-y-auto">
-      <div className="flex items-center gap-3 mb-2">
-        <UserCog className="h-6 w-6" style={{ color: 'var(--color-accent)' }} />
-        <div>
-          <h1 className="text-2xl font-bold">Asignaciones DMO</h1>
-          <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
-            Que rutina diaria sigue cada vendedor
-          </p>
-        </div>
+      <div className="flex flex-col gap-2 mb-6">
+        <span className="eyebrow-line">Equipo · Rutinas</span>
+        <h1
+          className="font-serif-display leading-none m-0"
+          style={{ fontSize: 'clamp(28px, 4.5vw, 44px)', color: 'var(--text-primary)' }}
+        >
+          Asignaciones DMO
+        </h1>
+        <p className="text-sm m-0" style={{ color: 'var(--ink-4)' }}>
+          Qué rutina diaria sigue cada vendedor.
+        </p>
       </div>
 
       {defaultTemplate && (

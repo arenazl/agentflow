@@ -174,21 +174,24 @@ export function DMOTemplates() {
 
   return (
     <div className="flex flex-col h-full min-h-0 p-4 md:p-6 overflow-y-auto">
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center gap-3">
-          <Layers className="h-6 w-6" style={{ color: 'var(--color-accent)' }} />
-          <div>
-            <h1 className="text-2xl font-bold">Templates DMO</h1>
-            <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
-              Rutinas diarias que pueden seguir los vendedores
-            </p>
-          </div>
+      <div className="flex items-start justify-between mb-6 gap-4 flex-wrap">
+        <div className="flex flex-col gap-2 min-w-0">
+          <span className="eyebrow-line">Equipo · Metodologías</span>
+          <h1
+            className="font-serif-display leading-none m-0"
+            style={{ fontSize: 'clamp(28px, 4.5vw, 44px)', color: 'var(--text-primary)' }}
+          >
+            Templates DMO
+          </h1>
+          <p className="text-sm m-0" style={{ color: 'var(--ink-4)' }}>
+            Rutinas diarias que pueden seguir los vendedores
+          </p>
         </div>
         {canEdit && (
           <button
             onClick={openNew}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg font-medium text-white transition-all duration-200 active:scale-95"
-            style={{ backgroundColor: 'var(--color-primary)' }}
+            className="inline-flex items-center gap-2 h-10 px-4 rounded-lg text-sm font-semibold text-white active:scale-95 transition-all duration-200"
+            style={{ backgroundColor: 'var(--navy-800)', border: '1px solid var(--navy-800)' }}
           >
             <Plus className="h-4 w-4" /> Nuevo template
           </button>

@@ -51,15 +51,18 @@ export function MiPerfil() {
 
   return (
     <div className="flex flex-col h-full min-h-0 p-4 md:p-6 overflow-y-auto">
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center gap-3">
-          <UserCircle className="h-6 w-6" style={{ color: 'var(--color-accent)' }} />
-          <div>
-            <h1 className="text-2xl font-bold">Mi perfil</h1>
-            <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
-              Editá tu información personal y configuración
-            </p>
-          </div>
+      <div className="flex items-start justify-between mb-6 gap-4 flex-wrap">
+        <div className="flex flex-col gap-2 min-w-0">
+          <span className="eyebrow-line">Cuenta · Personal</span>
+          <h1
+            className="font-serif-display leading-none m-0"
+            style={{ fontSize: 'clamp(28px, 4.5vw, 44px)', color: 'var(--text-primary)' }}
+          >
+            Mi perfil
+          </h1>
+          <p className="text-sm m-0" style={{ color: 'var(--ink-4)' }}>
+            Editá tu información personal y configuración
+          </p>
         </div>
         {dirty && (
           <button

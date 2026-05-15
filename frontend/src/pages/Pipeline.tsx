@@ -60,13 +60,19 @@ export function Pipeline() {
   return (
     <div className="flex h-full min-h-0">
       <div className="flex-1 min-w-0 flex flex-col p-4 md:p-6">
-        <div className="flex-shrink-0 mb-4">
-          <div className="flex items-center gap-3 mb-1">
-            <GitBranch className="h-6 w-6" style={{ color: 'var(--color-accent)' }} />
-            <h1 className="text-2xl font-bold">Pipeline</h1>
-          </div>
-          <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
-            Arrastrá cada deal a la siguiente etapa. {deals.length} deals abiertos.
+        <div className="flex-shrink-0 flex flex-col gap-2 mb-4">
+          <span className="eyebrow-line">Operación · Funnel</span>
+          <h1
+            className="font-serif-display leading-none m-0"
+            style={{ fontSize: 'clamp(28px, 4.5vw, 44px)', color: 'var(--text-primary)' }}
+          >
+            Pipeline
+          </h1>
+          <p className="text-sm m-0" style={{ color: 'var(--ink-4)' }}>
+            Arrastrá cada deal a la siguiente etapa.
+            <span className="ml-1">
+              <strong style={{ color: 'var(--text-primary)' }}>{deals.length}</strong> deals abiertos.
+            </span>
           </p>
         </div>
 
