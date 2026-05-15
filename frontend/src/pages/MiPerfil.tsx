@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
-import { UserCircle, Save, Phone, Mail, Smartphone, BellRing } from 'lucide-react'
-import { usersAPI } from '../services/api'
+import { UserCircle, Save, Phone, Mail, Smartphone, BellRing, Bell } from 'lucide-react'
+import { usersAPI, pushAPI } from '../services/api'
 import type { User } from '../types'
 
 export function MiPerfil() {
@@ -128,6 +128,27 @@ export function MiPerfil() {
             </p>
           </Section>
         )}
+
+        <Section title="Probar notificaciones push">
+          <p className="text-sm mb-3" style={{ color: 'var(--text-secondary)' }}>
+            Si ya activaste las notificaciones, este botón te envía un push de prueba al/los dispositivo/s donde aceptaste.
+          </p>
+          <button
+            onClick={async () => {
+              try {
+                await pushAPI.test()
+                toast.success('Push enviado. Esperá unos segundos...')
+              } catch (e: any) {
+                toast.error(e?.response?.data?.detail || 'Error al enviar push')
+              }
+            }}
+            className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium border transition-all duration-200 active:scale-95"
+            style={{ borderColor: 'var(--border-color)' }}
+          >
+            <Bell className="h-4 w-4" />
+            Enviar push de prueba
+          </button>
+        </Section>
       </div>
     </div>
   )

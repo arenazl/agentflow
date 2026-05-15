@@ -4,7 +4,7 @@ import { toast } from 'sonner'
 import {
   MessageSquare, Send, Search, Phone, User as UserIcon,
   CheckCheck, Clock as ClockIcon, AlertOctagon, Archive,
-  PlusCircle, RefreshCw,
+  PlusCircle, RefreshCw, ArrowLeft, MoreVertical, X as XIcon,
 } from 'lucide-react'
 import { whatsappAPI, usersAPI } from '../services/api'
 import { useAuth } from '../contexts/AuthContext'
@@ -171,12 +171,13 @@ export function Inbox() {
 
   // Mobile: si hay conv seleccionada mostramos solo el chat (no la lista)
   const showListOnMobile = selectedId === null
+  const [chatMenuOpen, setChatMenuOpen] = useState(false)
 
   return (
     <div className="flex h-full min-h-0">
       {/* Lista de conversaciones — en mobile: full width si no hay seleccion, oculta si hay */}
       <aside
-        className={`flex-shrink-0 ${showListOnMobile ? 'flex' : 'hidden'} md:flex w-full md:w-80 lg:w-96 flex-col border-r`}
+        className={`flex-shrink-0 ${showListOnMobile ? 'flex' : 'hidden'} md:flex w-full md:w-80 lg:w-96 flex-col md:border-r`}
         style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-color)' }}
       >
         <header className="flex-shrink-0 p-4 border-b" style={{ borderColor: 'var(--border-color)' }}>
@@ -266,14 +267,15 @@ export function Inbox() {
               <button
                 key={c.id}
                 onClick={() => setSelectedId(c.id)}
-                className="w-full flex items-start gap-3 p-3 text-left transition-all duration-150 border-l-2"
+                className="w-full flex items-start gap-3 p-3 md:p-3 text-left transition-all duration-150 border-l-2 active:bg-[var(--bg-hover)]"
                 style={{
                   backgroundColor: isSelected ? 'var(--bg-hover)' : 'transparent',
                   borderLeftColor: isSelected ? 'var(--color-accent)' : 'transparent',
+                  minHeight: 64,
                 }}
               >
                 <div
-                  className="flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center font-semibold text-sm"
+                  className="flex-shrink-0 w-11 h-11 md:w-10 md:h-10 rounded-full flex items-center justify-center font-semibold text-sm"
                   style={{ backgroundColor: 'var(--color-primary)', color: 'var(--color-accent)' }}
                 >
                   {(c.nombre_contacto ?? c.cliente_nombre ?? '#').slice(0, 2).toUpperCase()}
@@ -324,8 +326,11 @@ export function Inbox() {
         </div>
       </aside>
 
-      {/* Chat activo */}
-      <main className="flex-1 min-w-0 flex flex-col" style={{ backgroundColor: 'var(--bg-app)' }}>
+      {/* Chat activo — en mobile: oculto cuando no hay seleccion */}
+      <main
+        className={`flex-1 min-w-0 flex-col ${selectedId === null ? 'hidden md:flex' : 'flex'}`}
+        style={{ backgroundColor: 'var(--bg-app)' }}
+      >
         {!detail ? (
           <div className="flex-1 flex flex-col items-center justify-center text-center p-8" style={{ color: 'var(--text-secondary)' }}>
             <MessageSquare className="h-12 w-12 mb-3" style={{ color: 'var(--color-accent)' }} />
@@ -336,10 +341,23 @@ export function Inbox() {
           <>
             {/* Header del chat */}
             <header
-              className="flex-shrink-0 flex items-center justify-between p-3 border-b"
-              style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-color)' }}
+              className="flex-shrink-0 flex items-center justify-between gap-2 p-3 border-b"
+              style={{
+                backgroundColor: 'var(--bg-card)',
+                borderColor: 'var(--border-color)',
+                paddingTop: 'max(0.75rem, env(safe-area-inset-top))',
+              }}
             >
-              <div className="flex items-center gap-3 min-w-0">
+              {/* Back button SOLO mobile */}
+              <button
+                onClick={() => setSelectedId(null)}
+                className="md:hidden flex-shrink-0 p-2 -ml-1 rounded-lg hover:bg-black/5 active:scale-95"
+                aria-label="Volver"
+              >
+                <ArrowLeft className="h-5 w-5" />
+              </button>
+
+              <div className="flex items-center gap-3 min-w-0 flex-1">
                 <div
                   className="flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center font-semibold"
                   style={{ backgroundColor: 'var(--color-primary)', color: 'var(--color-accent)' }}
@@ -350,18 +368,20 @@ export function Inbox() {
                   <div className="font-semibold truncate">
                     {detail.nombre_contacto ?? detail.cliente_nombre ?? 'Sin nombre'}
                   </div>
-                  <div className="flex items-center gap-2 text-xs" style={{ color: 'var(--text-secondary)' }}>
-                    <Phone className="h-3 w-3" /> {detail.telefono}
+                  <div className="flex items-center gap-2 text-xs truncate" style={{ color: 'var(--text-secondary)' }}>
+                    <Phone className="h-3 w-3 flex-shrink-0" />
+                    <span className="truncate">{detail.telefono}</span>
                     {detail.cliente_id && (
-                      <>
-                        <span>·</span>
-                        <UserIcon className="h-3 w-3" /> Cliente #{detail.cliente_id}
-                      </>
+                      <span className="hidden sm:inline">
+                        · Cliente #{detail.cliente_id}
+                      </span>
                     )}
                   </div>
                 </div>
               </div>
-              <div className="flex items-center gap-2 flex-shrink-0">
+
+              {/* Selects desktop / kebab mobile */}
+              <div className="hidden md:flex items-center gap-2 flex-shrink-0">
                 <select
                   value={detail.assignee_id ?? ''}
                   onChange={(e) => handleAssign(e.target.value ? Number(e.target.value) : null)}
@@ -385,7 +405,65 @@ export function Inbox() {
                   <option value="bloqueada">Bloqueada</option>
                 </select>
               </div>
+
+              <button
+                onClick={() => setChatMenuOpen(true)}
+                className="md:hidden flex-shrink-0 p-2 -mr-1 rounded-lg hover:bg-black/5 active:scale-95"
+                aria-label="Mas opciones"
+              >
+                <MoreVertical className="h-5 w-5" />
+              </button>
             </header>
+
+            {/* Bottom sheet de opciones (mobile) */}
+            {chatMenuOpen && (
+              <div className="md:hidden fixed inset-0 z-50">
+                <div className="absolute inset-0 bg-black/50" onClick={() => setChatMenuOpen(false)} />
+                <div
+                  className="absolute bottom-0 left-0 right-0 rounded-t-2xl p-4 animate-fade-in-up"
+                  style={{ backgroundColor: 'var(--bg-card)', paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}
+                >
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="font-bold text-lg">Opciones</h3>
+                    <button onClick={() => setChatMenuOpen(false)} className="p-1 -m-1">
+                      <XIcon className="h-5 w-5" />
+                    </button>
+                  </div>
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-xs font-semibold uppercase tracking-wider mb-1.5"
+                             style={{ color: 'var(--text-secondary)' }}>Asignar a</label>
+                      <select
+                        value={detail.assignee_id ?? ''}
+                        onChange={(e) => handleAssign(e.target.value ? Number(e.target.value) : null)}
+                        className="w-full text-sm px-3 py-2.5 rounded-lg border bg-transparent"
+                        style={{ borderColor: 'var(--border-color)' }}
+                      >
+                        <option value="">Sin asignar</option>
+                        {vendedores.map((v) => (
+                          <option key={v.id} value={v.id}>{v.nombre} {v.apellido}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold uppercase tracking-wider mb-1.5"
+                             style={{ color: 'var(--text-secondary)' }}>Estado</label>
+                      <select
+                        value={detail.estado}
+                        onChange={(e) => handleEstado(e.target.value as WaConvEstado)}
+                        className="w-full text-sm px-3 py-2.5 rounded-lg border bg-transparent"
+                        style={{ borderColor: 'var(--border-color)' }}
+                      >
+                        <option value="nueva">Nueva</option>
+                        <option value="abierta">Abierta</option>
+                        <option value="cerrada">Cerrada</option>
+                        <option value="bloqueada">Bloqueada</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Mensajes */}
             <div className="flex-1 min-h-0 overflow-y-auto p-4 space-y-3">
@@ -408,7 +486,7 @@ export function Inbox() {
                     )}
                     <div className={`flex ${isOut ? 'justify-end' : 'justify-start'}`}>
                       <div
-                        className="max-w-[70%] rounded-2xl px-3 py-2 shadow-sm"
+                        className="max-w-[85%] md:max-w-[70%] rounded-2xl px-3 py-2 shadow-sm"
                         style={{
                           backgroundColor: isOut ? 'var(--color-accent)' : 'var(--bg-card)',
                           color: isOut ? 'var(--color-primary)' : 'var(--text-primary)',
@@ -435,32 +513,39 @@ export function Inbox() {
             {/* Composer */}
             <footer
               className="flex-shrink-0 p-3 border-t"
-              style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-color)' }}
+              style={{
+                backgroundColor: 'var(--bg-card)',
+                borderColor: 'var(--border-color)',
+                paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))',
+              }}
             >
-              <div className="flex items-center gap-2">
-                <input
-                  type="text"
+              <div className="flex items-end gap-2">
+                <textarea
+                  rows={1}
                   value={draft}
-                  onChange={(e) => setDraft(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend() } }}
+                  onChange={(e) => {
+                    setDraft(e.target.value)
+                    // Auto-resize
+                    const el = e.target as HTMLTextAreaElement
+                    el.style.height = 'auto'
+                    el.style.height = Math.min(el.scrollHeight, 120) + 'px'
+                  }}
+                  onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey && !('ontouchstart' in window)) { e.preventDefault(); handleSend() } }}
                   placeholder={detail.estado === 'bloqueada' ? 'Conversación bloqueada' : 'Escribí una respuesta...'}
                   disabled={detail.estado === 'bloqueada' || sending}
-                  className="flex-1 px-3 py-2 rounded-lg border bg-[var(--bg-app)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] disabled:opacity-50"
-                  style={{ borderColor: 'var(--border-color)' }}
+                  className="flex-1 px-3 py-2.5 rounded-2xl border bg-[var(--bg-app)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] disabled:opacity-50 text-base md:text-sm resize-none"
+                  style={{ borderColor: 'var(--border-color)', minHeight: 44 }}
                 />
                 <button
                   onClick={handleSend}
                   disabled={!draft.trim() || sending || detail.estado === 'bloqueada'}
-                  className="flex items-center gap-1 px-4 py-2 rounded-lg font-semibold text-white transition-all duration-200 active:scale-95 disabled:opacity-50"
+                  className="flex-shrink-0 flex items-center justify-center w-11 h-11 rounded-full text-white transition-all duration-200 active:scale-95 disabled:opacity-40"
                   style={{ backgroundColor: 'var(--color-primary)' }}
+                  aria-label="Enviar"
                 >
-                  <Send className="h-4 w-4" />
-                  Enviar
+                  <Send className="h-5 w-5" />
                 </button>
               </div>
-              <p className="text-[10px] mt-1.5" style={{ color: 'var(--text-secondary)' }}>
-                Fase 1 (mock) · el mensaje se guarda en CRM pero no se envía a WhatsApp real todavía
-              </p>
             </footer>
           </>
         )}

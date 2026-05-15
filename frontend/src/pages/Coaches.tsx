@@ -192,10 +192,10 @@ export function Coaches() {
             </div>
           ) : (
             <div
-              className="rounded-xl overflow-hidden"
+              className="rounded-xl overflow-x-auto"
               style={{ backgroundColor: 'var(--surface)', border: '1px solid var(--border-color)' }}
             >
-              <table className="w-full text-sm border-collapse">
+              <table className="w-full text-sm border-collapse" style={{ minWidth: 680 }}>
                 <thead>
                   <tr style={{ backgroundColor: 'var(--surface-3)' }}>
                     <th className="uppercase-label py-3 px-4 text-left">Coach</th>

@@ -85,6 +85,51 @@ async def _send_via_baileys(db: AsyncSession, telefono: str, contenido: str) -> 
 # Variable compartida para validar webhook entrante (que hace Baileys hacia AgentFlow)
 WHATSAPP_WEBHOOK_API_KEY = ENV_API_KEY  # mantengo por compat con el codigo existente del webhook
 
+
+async def _dispatch_notif_vendedor(
+    agente_id: int,
+    telefono_personal: Optional[str],
+    contacto_label: str,
+    resumen: str,
+    conv_id: int,
+):
+    """Background task: notifica al vendedor por PWA push y WhatsApp personal en paralelo.
+    Cada notificacion en su propia sesion DB para no compartir state entre tasks."""
+    import asyncio as _asyncio
+
+    async def _push():
+        try:
+            async with AsyncSessionLocal() as db_bg:
+                await notify_user(
+                    db_bg, agente_id,
+                    title="Nuevo lead asignado",
+                    body=f"Cliente: {contacto_label}",
+                    url=f"/inbox?conv={conv_id}",
+                    tag=f"lead-{conv_id}",
+                )
+        except Exception as e:
+            print(f"[bg push] error: {e}")
+
+    async def _wa():
+        if not telefono_personal:
+            return
+        try:
+            notif_msg = (
+                f"[AgentFlow] Nuevo lead asignado\n\n"
+                f"Cliente: {contacto_label}\n"
+                f"Lo que pregunto:\n{resumen}\n\n"
+                f"Abri esta conversacion para responder:\n"
+                f"https://agentflow-beyker.netlify.app/inbox?conv={conv_id}"
+            )
+            async with AsyncSessionLocal() as db_bg:
+                ok, mid, err = await _send_via_baileys(db_bg, telefono_personal, notif_msg)
+                print(f"[bg wa vendedor] tel={telefono_personal} ok={ok} err={err}")
+        except Exception as e:
+            print(f"[bg wa vendedor] error: {e}")
+
+    # Lanzar las 2 en paralelo
+    await _asyncio.gather(_push(), _wa(), return_exceptions=True)
+
 router = APIRouter()
 
 
@@ -377,16 +422,24 @@ async def webhook_incoming(
 
     # Si la conv ya tiene un asignado humano, push notif (no procesa con bot)
     if c.assignee_id is not None and c.estado != WaConversacionEstado.bloqueada:
-        try:
-            await notify_user(
-                db, c.assignee_id,
-                title=f"Mensaje de {c.nombre_contacto or c.telefono}",
-                body=payload.contenido[:120],
-                url=f"/inbox?conv={c.id}",
-                tag=f"conv-{c.id}",
-            )
-        except Exception as e:
-            print(f"[push mensaje nuevo] error: {e}")
+        import asyncio as _asyncio
+        _conv_id = c.id
+        _assignee = c.assignee_id
+        _contacto = c.nombre_contacto or c.telefono
+        _contenido_preview = payload.contenido[:120]
+        async def _bg_push():
+            try:
+                async with AsyncSessionLocal() as db_bg:
+                    await notify_user(
+                        db_bg, _assignee,
+                        title=f"Mensaje de {_contacto}",
+                        body=_contenido_preview,
+                        url=f"/inbox?conv={_conv_id}",
+                        tag=f"conv-{_conv_id}",
+                    )
+            except Exception as e:
+                print(f"[bg push msg] error: {e}")
+        _asyncio.create_task(_bg_push())
 
     if c.assignee_id is None and c.estado != WaConversacionEstado.bloqueada:
         bot_response_text, bot_action = await procesar_mensaje_entrante(db, c, m)
@@ -427,47 +480,31 @@ async def webhook_incoming(
                 db.add(m2)
                 await _send_via_baileys(db, c.telefono, handoff_msg)
 
-                # === Push notification al vendedor (PWA) ===
-                try:
-                    await notify_user(
-                        db, agente.id,
-                        title="Nuevo lead asignado",
-                        body=f"Cliente: {c.nombre_contacto or c.telefono}",
-                        url=f"/inbox?conv={c.id}",
-                        tag=f"lead-{c.id}",
-                    )
-                except Exception as e:
-                    print(f"[push lead asignado] error: {e}")
-
-                # === Notificacion al vendedor en su WhatsApp personal ===
-                if agente.telefono_personal:
-                    # Tomar los ultimos 4 mensajes del cliente para armar el resumen
-                    last_msgs = await db.execute(
-                        select(WhatsappMessage)
-                        .where(
-                            and_(
-                                WhatsappMessage.conversation_id == c.id,
-                                WhatsappMessage.direccion == WaMensajeDireccion.inbound,
-                            )
+                # Tomar los ultimos 4 mensajes del cliente para armar el resumen
+                last_msgs = await db.execute(
+                    select(WhatsappMessage)
+                    .where(
+                        and_(
+                            WhatsappMessage.conversation_id == c.id,
+                            WhatsappMessage.direccion == WaMensajeDireccion.inbound,
                         )
-                        .order_by(WhatsappMessage.enviado_at.desc())
-                        .limit(4)
                     )
-                    msgs_cliente = list(reversed(last_msgs.scalars().all()))
-                    resumen = "\n".join(f"> {m.contenido[:100]}" for m in msgs_cliente)
+                    .order_by(WhatsappMessage.enviado_at.desc())
+                    .limit(4)
+                )
+                msgs_cliente = list(reversed(last_msgs.scalars().all()))
+                resumen = "\n".join(f"> {m.contenido[:100]}" for m in msgs_cliente)
+                contacto_label = c.nombre_contacto or c.telefono
 
-                    contacto_label = c.nombre_contacto or c.telefono
-                    notif_msg = (
-                        f"[AgentFlow] Nuevo lead asignado\n\n"
-                        f"Cliente: {contacto_label}\n"
-                        f"Lo que pregunto:\n{resumen}\n\n"
-                        f"Abri esta conversacion para responder:\n"
-                        f"https://agentflow-beyker.netlify.app/inbox?conv={c.id}"
-                    )
-                    try:
-                        await _send_via_baileys(db, agente.telefono_personal, notif_msg)
-                    except Exception as e:
-                        print(f"[notif vendedor] error: {e}")
+                # Disparar notificaciones en BACKGROUND (no bloquear el webhook)
+                import asyncio as _asyncio
+                _asyncio.create_task(_dispatch_notif_vendedor(
+                    agente_id=agente.id,
+                    telefono_personal=agente.telefono_personal,
+                    contacto_label=contacto_label,
+                    resumen=resumen,
+                    conv_id=c.id,
+                ))
             else:
                 # Nadie disponible
                 no_agent_msg = (

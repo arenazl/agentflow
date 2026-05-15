@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { GitBranch, DollarSign } from 'lucide-react'
+import { GitBranch, DollarSign, ArrowRight, X as XIcon } from 'lucide-react'
 import { toast } from 'sonner'
 import { pipelineAPI } from '../services/api'
 import { AICoachPanel } from '../components/AICoachPanel'
@@ -24,6 +24,7 @@ export function Pipeline() {
   const [loading, setLoading] = useState(true)
   const [dragging, setDragging] = useState<PipelineDeal | null>(null)
   const [dragOver, setDragOver] = useState<string | null>(null)
+  const [tapDeal, setTapDeal] = useState<PipelineDeal | null>(null)  // mobile: card tappeada
 
   const load = async () => {
     setLoading(true)
@@ -146,6 +147,7 @@ export function Pipeline() {
                             draggable
                             onDragStart={() => setDragging(d)}
                             onDragEnd={() => setDragging(null)}
+                            onClick={() => { if ('ontouchstart' in window) setTapDeal(d) }}
                             className="rounded-lg border p-3 cursor-grab active:cursor-grabbing transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md animate-fade-in-up"
                             style={{
                               backgroundColor: 'var(--bg-app)',
@@ -198,6 +200,48 @@ export function Pipeline() {
       </div>
 
       <AICoachPanel screen="pipeline" contextData={contextData} />
+
+      {/* Mobile: tap-to-move bottom sheet */}
+      {tapDeal && (
+        <div className="md:hidden fixed inset-0 z-50">
+          <div className="absolute inset-0 bg-black/50" onClick={() => setTapDeal(null)} />
+          <div
+            className="absolute bottom-0 left-0 right-0 rounded-t-2xl p-4 animate-fade-in-up"
+            style={{ backgroundColor: 'var(--bg-card)', paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}
+          >
+            <div className="flex items-center justify-between mb-3">
+              <div className="min-w-0 flex-1">
+                <h3 className="font-bold text-base truncate">{tapDeal.propiedad_titulo}</h3>
+                <p className="text-xs truncate" style={{ color: 'var(--text-secondary)' }}>
+                  {tapDeal.cliente_nombre} · USD {tapDeal.comision_estimada?.toLocaleString() ?? '—'}
+                </p>
+              </div>
+              <button onClick={() => setTapDeal(null)} className="p-2 -mr-1 flex-shrink-0">
+                <XIcon className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: 'var(--text-secondary)' }}>
+              Mover a otra etapa
+            </div>
+            <div className="space-y-1">
+              {ETAPAS.filter((e) => e.key !== tapDeal.etapa).map((et) => (
+                <button
+                  key={et.key}
+                  onClick={() => { moveTo(tapDeal, et.key); setTapDeal(null) }}
+                  className="w-full flex items-center justify-between p-3 rounded-lg border active:scale-95 transition-all"
+                  style={{ borderColor: 'var(--border-color)' }}
+                >
+                  <div className="flex items-center gap-2">
+                    <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: et.color }} />
+                    <span className="font-medium text-sm">{et.label}</span>
+                  </div>
+                  <ArrowRight className="h-4 w-4" style={{ color: 'var(--text-secondary)' }} />
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

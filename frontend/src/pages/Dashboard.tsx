@@ -271,7 +271,8 @@ function TabPill({ active, children, onClick }: { active?: boolean; children: Re
 
 function TeamTable({ team }: { team: TeamRow[] }) {
   return (
-    <table className="w-full border-collapse">
+    <div className="overflow-x-auto">
+    <table className="w-full border-collapse" style={{ minWidth: 720 }}>
       <thead>
         <tr>
           <th className="uppercase-label py-3 pl-6 pr-4 text-left" style={{ borderBottom: '1px solid var(--divider)' }}>Agente</th>
@@ -335,6 +336,7 @@ function TeamTable({ team }: { team: TeamRow[] }) {
         })}
       </tbody>
     </table>
+    </div>
   )
 }
 

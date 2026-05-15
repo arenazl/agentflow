@@ -87,9 +87,9 @@ export function AsignacionesDMO() {
       {loading ? (
         <SkeletonTable rows={5} cols={4} />
       ) : (
-        <div className="rounded-xl border overflow-hidden"
+        <div className="rounded-xl border overflow-x-auto"
              style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-color)' }}>
-          <table className="w-full text-sm">
+          <table className="w-full text-sm" style={{ minWidth: 680 }}>
             <thead>
               <tr style={{ backgroundColor: 'var(--bg-hover)' }}>
                 <th className="text-left px-4 py-3 font-semibold">Vendedor</th>

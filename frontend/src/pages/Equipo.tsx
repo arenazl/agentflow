@@ -57,9 +57,9 @@ export function Equipo() {
       {loading ? (
         <div className="text-center py-12 text-sm" style={{ color: 'var(--text-secondary)' }}>Cargando...</div>
       ) : (
-        <div className="rounded-xl border overflow-hidden"
+        <div className="rounded-xl border overflow-x-auto"
              style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-color)' }}>
-          <table className="w-full text-sm">
+          <table className="w-full text-sm" style={{ minWidth: 720 }}>
             <thead>
               <tr style={{ backgroundColor: 'var(--bg-hover)' }}>
                 <th className="text-left px-4 py-3 font-semibold">Vendedor</th>

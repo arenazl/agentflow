@@ -81,14 +81,14 @@ export function DatosIA() {
           )}
         </div>
 
-        <div className="flex items-center gap-1 mt-4 border-b" style={{ borderColor: 'var(--border-color)' }}>
+        <div className="flex items-center gap-1 mt-4 border-b overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0 scrollbar-hide" style={{ borderColor: 'var(--border-color)' }}>
           {tabs.map((t) => {
             const active = tab === t.key
             return (
               <button
                 key={t.key}
                 onClick={() => setTab(t.key)}
-                className="flex items-center gap-2 px-4 py-2 text-sm font-medium transition-all duration-200 border-b-2"
+                className="flex items-center gap-2 px-4 py-2 text-sm font-medium transition-all duration-200 border-b-2 whitespace-nowrap flex-shrink-0"
                 style={{
                   borderBottomColor: active ? 'var(--color-accent)' : 'transparent',
                   color: active ? 'var(--color-accent)' : 'var(--text-secondary)',

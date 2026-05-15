@@ -249,13 +249,29 @@ async def procesar_mensaje_entrante(
         # Caso 1: Gemini devuelve texto → fin del loop
         if "text" in part and part["text"]:
             text = part["text"].strip()
-            # Detectar marcador de derivacion
+            # Detectar marcador explicito
             if "DERIVAR_HUMANO" in text:
                 clean = text.replace("DERIVAR_HUMANO", "").strip()
                 return (clean or None, "derivar")
             if "ESPERAR_HUMANO" in text:
                 clean = text.replace("ESPERAR_HUMANO", "").strip()
                 return (clean or None, "esperar_humano")
+            # Fallback: detectar derivacion en lenguaje natural (Gemini a veces olvida el marcador)
+            import re as _re
+            lower = text.lower()
+            patterns_derivar = [
+                r"te conect[oa] con (?:un )?asesor",
+                r"te paso con (?:un )?asesor",
+                r"te der[ií]vo con (?:un )?asesor",
+                r"un asesor (?:te |ya )?(?:te )?(?:va a |sera quien )?(?:te )?(?:escribe|escribir|contacta|contactar|llama|llamar|atiend)",
+                r"te (?:va a |vamos a )?conectar con (?:un )?asesor",
+                r"te pongo en contacto con",
+                r"un asesor (?:de )?beyker te (?:va a |)",
+            ]
+            for p in patterns_derivar:
+                if _re.search(p, lower):
+                    print(f"[bot] derivacion implicita detectada por patron: {p}")
+                    return (text, "derivar")
             return (text, "continuar")
 
         # Caso 2: Gemini quiere llamar una tool
