@@ -102,6 +102,15 @@ export const usersAPI = {
   setAvailability: (is_available: boolean) => api.patch('/users/me/availability', { is_available }),
 }
 
+export const pushAPI = {
+  vapidKey: () => api.get('/push/vapid-public-key'),
+  subscribe: (data: { endpoint: string; keys: { p256dh: string; auth: string } }) =>
+    api.post('/push/subscribe', data),
+  unsubscribe: (endpoint: string) =>
+    api.delete('/push/subscribe', { params: { endpoint } }),
+  test: () => api.post('/push/test'),
+}
+
 export const botConfigAPI = {
   get: () => api.get('/bot-config/'),
   update: (data: any) => api.patch('/bot-config/', data),

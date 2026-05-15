@@ -41,6 +41,7 @@ from schemas.whatsapp import (
     BaileysIncomingPayload,
 )
 from services.whatsapp_bot import procesar_mensaje_entrante, derivar_a_humano
+from services.push_notif import notify_user
 
 
 # Config Baileys: primero busca en bot_config (DB), si no usa env vars como fallback.
@@ -374,6 +375,19 @@ async def webhook_incoming(
     bot_response_text = None
     derivado_a = None
 
+    # Si la conv ya tiene un asignado humano, push notif (no procesa con bot)
+    if c.assignee_id is not None and c.estado != WaConversacionEstado.bloqueada:
+        try:
+            await notify_user(
+                db, c.assignee_id,
+                title=f"Mensaje de {c.nombre_contacto or c.telefono}",
+                body=payload.contenido[:120],
+                url=f"/inbox?conv={c.id}",
+                tag=f"conv-{c.id}",
+            )
+        except Exception as e:
+            print(f"[push mensaje nuevo] error: {e}")
+
     if c.assignee_id is None and c.estado != WaConversacionEstado.bloqueada:
         bot_response_text, bot_action = await procesar_mensaje_entrante(db, c, m)
 
@@ -412,6 +426,18 @@ async def webhook_incoming(
                 )
                 db.add(m2)
                 await _send_via_baileys(db, c.telefono, handoff_msg)
+
+                # === Push notification al vendedor (PWA) ===
+                try:
+                    await notify_user(
+                        db, agente.id,
+                        title="Nuevo lead asignado",
+                        body=f"Cliente: {c.nombre_contacto or c.telefono}",
+                        url=f"/inbox?conv={c.id}",
+                        tag=f"lead-{c.id}",
+                    )
+                except Exception as e:
+                    print(f"[push lead asignado] error: {e}")
 
                 # === Notificacion al vendedor en su WhatsApp personal ===
                 if agente.telefono_personal:

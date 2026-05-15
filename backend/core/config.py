@@ -36,6 +36,15 @@ class Settings(BaseSettings):
     SMTP_FROM: str = "arenazl@gmail.com"
     SMTP_FROM_NAME: str = "AgentFlow"
 
+    # Web Push (VAPID)
+    VAPID_PUBLIC_KEY: str = ""
+    VAPID_PRIVATE_KEY: str = ""
+    VAPID_CONTACT_EMAIL: str = "mailto:admin@agentflow.local"
+
+    # WhatsApp Baileys integration (fallback si no esta en bot_config)
+    WHATSAPP_WEBHOOK_API_KEY: str = ""
+    BAILEYS_SERVICE_URL: str = ""
+
     @property
     def ASYNC_DATABASE_URL(self) -> str:
         return (

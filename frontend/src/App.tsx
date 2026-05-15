@@ -1,6 +1,7 @@
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { Layout } from './components/Layout'
 import { ThemedToaster } from './components/ThemedToaster'
+import { PushOptIn } from './components/PushOptIn'
 import { useAuth } from './contexts/AuthContext'
 import { Login } from './pages/Login'
 import { Dashboard } from './pages/Dashboard'
@@ -47,6 +48,7 @@ function PrivateLayout() {
   if (!isAuthenticated) return <Navigate to="/login" replace />
   return (
     <Layout>
+      <PushOptIn />
       <Routes>
         <Route path="/" element={<Dashboard />} />
         <Route path="/dmo" element={<DMO />} />

@@ -7,6 +7,7 @@ from .pipeline import PipelineDeal
 from .dmo import Coach, DmoTemplate, DmoBloque, VendedorDmoAssignment, DmoLog, MetricaTipo
 from .bot_config import BotConfig, BotFaq
 from .baileys_auth import BaileysAuthState
+from .push_subscription import PushSubscription
 from .whatsapp import WhatsappConversation, WhatsappMessage, WaConversacionEstado, WaMensajeDireccion
 
 __all__ = [
@@ -30,4 +31,5 @@ __all__ = [
     "BotConfig",
     "BotFaq",
     "BaileysAuthState",
+    "PushSubscription",
 ]
