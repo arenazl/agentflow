@@ -74,7 +74,7 @@ export function ABMTableClassic<T>({
       style={{ backgroundColor: 'var(--surface)', border: '1px solid var(--border-color)' }}
     >
       <div className="overflow-x-auto">
-        <table className="w-full text-sm border-collapse">
+        <table className="w-full text-sm border-collapse" style={{ minWidth: 720 }}>
           <thead>
             <tr style={{ backgroundColor: 'var(--surface-3)' }}>
               {columns.map((c) => {
