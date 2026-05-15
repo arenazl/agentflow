@@ -115,32 +115,41 @@ function ToolbarBtn({ btn }: { btn: ToolbarButtonDef }) {
 function ViewToggle({ view, onChange }: { view: ViewMode; onChange: (v: ViewMode) => void }) {
   return (
     <div
-      className="hidden md:inline-flex items-center rounded-lg p-1"
+      className="inline-flex items-center rounded-lg p-1 relative"
       style={{ backgroundColor: 'var(--surface)', border: '1px solid var(--border-color)' }}
     >
+      {/* Pill deslizante que indica la vista activa */}
+      <div
+        className="absolute top-1 bottom-1 rounded transition-all duration-300 ease-out"
+        style={{
+          backgroundColor: 'var(--navy-800)',
+          width: 'calc(50% - 4px)',
+          left: view === 'table' ? '4px' : 'calc(50% + 0px)',
+          boxShadow: '0 1px 3px rgba(14,43,79,0.15)',
+        }}
+      />
+
       <button
         type="button"
         onClick={() => onChange('table')}
-        className="p-1.5 rounded transition-all duration-150"
-        style={{
-          backgroundColor: view === 'table' ? 'var(--navy-800)' : 'transparent',
-          color:           view === 'table' ? '#fff'              : 'var(--ink-4)',
-        }}
+        className="relative z-10 px-3 py-1.5 rounded inline-flex items-center gap-1.5 text-xs font-medium transition-colors duration-200"
+        style={{ color: view === 'table' ? '#fff' : 'var(--ink-4)' }}
         title="Vista tabla"
+        aria-label="Vista tabla"
       >
         <List className="h-4 w-4" />
+        <span className="hidden sm:inline">Tabla</span>
       </button>
       <button
         type="button"
         onClick={() => onChange('cards')}
-        className="p-1.5 rounded transition-all duration-150"
-        style={{
-          backgroundColor: view === 'cards' ? 'var(--navy-800)' : 'transparent',
-          color:           view === 'cards' ? '#fff'              : 'var(--ink-4)',
-        }}
+        className="relative z-10 px-3 py-1.5 rounded inline-flex items-center gap-1.5 text-xs font-medium transition-colors duration-200"
+        style={{ color: view === 'cards' ? '#fff' : 'var(--ink-4)' }}
         title="Vista cards"
+        aria-label="Vista cards"
       >
         <LayoutGrid className="h-4 w-4" />
+        <span className="hidden sm:inline">Cards</span>
       </button>
     </div>
   )
