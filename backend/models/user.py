@@ -8,6 +8,7 @@ from core.database import Base
 class UserRole(str, enum.Enum):
     admin = "admin"
     gerente = "gerente"
+    coordinador = "coordinador"
     vendedor = "vendedor"
 
 

@@ -1,9 +1,15 @@
 import { useState } from 'react'
 import { useNavigate, Navigate } from 'react-router-dom'
 import { toast } from 'sonner'
-import { Home, ArrowRight, ClipboardList, GitBranch, Users, Sparkles } from 'lucide-react'
+import { Home, ArrowRight, ClipboardList, GitBranch, Users, Sparkles, Briefcase, UserCheck, UserCog } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { BeykerLogo } from '../components/BeykerLogo'
+
+const DEMO_USERS = [
+  { email: 'gerente@beyker.demo', label: 'Patricio', role: 'Gerente', icon: Briefcase },
+  { email: 'belen@beyker.demo',   label: 'Belen',    role: 'Coordinadora', icon: UserCog },
+  { email: 'lucas@beyker.demo',   label: 'Lucas',    role: 'Vendedor', icon: UserCheck },
+]
 
 export function Login() {
   const { login, isAuthenticated } = useAuth()
@@ -14,17 +20,26 @@ export function Login() {
 
   if (isAuthenticated) return <Navigate to="/" replace />
 
-  const onSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
+  const doLogin = async (emailToUse: string, passwordToUse: string) => {
     setLoading(true)
     try {
-      await login(email, password)
+      await login(emailToUse, passwordToUse)
       navigate('/')
     } catch (err: any) {
       toast.error(err.response?.data?.detail ?? 'Error al iniciar sesion')
     } finally {
       setLoading(false)
     }
+  }
+
+  const onSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    await doLogin(email, password)
+  }
+
+  const quickLogin = async (demoEmail: string) => {
+    setEmail(demoEmail)
+    await doLogin(demoEmail, 'admin123')
   }
 
   return (
@@ -153,20 +168,37 @@ export function Login() {
             </button>
           </form>
 
-          <div
-            className="mt-6 p-3 rounded-lg border text-xs"
-            style={{
-              backgroundColor: 'rgba(201, 164, 90, 0.08)',
-              borderColor: 'rgba(201, 164, 90, 0.3)',
-            }}
-          >
-            <div className="font-semibold mb-1.5 uppercase tracking-wider text-[10px]" style={{ color: '#c9a45a' }}>
-              Cuentas demo · password admin123
+          <div className="mt-6">
+            <div className="flex items-center gap-2 mb-3">
+              <div className="flex-1 h-px" style={{ backgroundColor: 'var(--border-color)' }} />
+              <span className="text-[10px] uppercase tracking-wider font-semibold" style={{ color: 'var(--text-secondary)' }}>
+                Acceso rápido demo
+              </span>
+              <div className="flex-1 h-px" style={{ backgroundColor: 'var(--border-color)' }} />
             </div>
-            <div className="space-y-0.5 text-[var(--text-secondary)] font-mono">
-              <div>gerente@beyker.demo</div>
-              <div>lautaro@beyker.demo · vendedor</div>
-              <div>admin@beyker.demo · admin</div>
+            <div className="grid grid-cols-3 gap-2">
+              {DEMO_USERS.map((u) => (
+                <button
+                  key={u.email}
+                  onClick={() => quickLogin(u.email)}
+                  disabled={loading}
+                  className="group flex flex-col items-center gap-1.5 p-3 rounded-lg border transition-all duration-200 hover:-translate-y-0.5 active:scale-95 disabled:opacity-50"
+                  style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-color)' }}
+                >
+                  <div
+                    className="w-9 h-9 rounded-full flex items-center justify-center group-hover:scale-110 transition-transform duration-200"
+                    style={{ backgroundColor: '#002554' }}
+                  >
+                    <u.icon className="h-4 w-4" style={{ color: '#c9a45a' }} />
+                  </div>
+                  <div className="text-xs font-semibold text-center leading-tight text-[var(--text-primary)]">
+                    {u.label}
+                  </div>
+                  <div className="text-[10px] text-center leading-none" style={{ color: 'var(--text-secondary)' }}>
+                    {u.role}
+                  </div>
+                </button>
+              ))}
             </div>
           </div>
         </div>
