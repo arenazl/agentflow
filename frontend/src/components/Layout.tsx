@@ -1,7 +1,7 @@
 import { ReactNode, useState } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
 import {
-  Menu, X, ChevronLeft, ChevronRight,
+  ChevronLeft, ChevronRight,
   LayoutDashboard, ClipboardList, Users, Building2, Calendar,
   GitBranch, FileText, Settings, LogOut, GraduationCap, Layers, UserCog,
   MessageSquare, Brain, UserCircle,
@@ -10,6 +10,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { ThemeSwitcher } from './ThemeSwitcher'
 import { AvailabilityToggle } from './AvailabilityToggle'
 import { BeykerLogo } from './BeykerLogo'
+import { BottomNav } from './BottomNav'
 
 interface NavItem {
   label: string
@@ -36,13 +37,10 @@ const navItems: NavItem[] = [
   { label: 'Configuracion', to: '/configuracion', icon: Settings },
 ]
 
-// BeykerLogo viene de ./BeykerLogo.tsx (SVG inline con CSS vars)
-
 export function Layout({ children }: { children: ReactNode }) {
   const { user, logout } = useAuth()
   const navigate = useNavigate()
   const [collapsed, setCollapsed] = useState(false)
-  const [mobileOpen, setMobileOpen] = useState(false)
 
   const visible = navItems.filter((n) => !n.roles || n.roles.includes(user?.role ?? ''))
 
@@ -55,12 +53,6 @@ export function Layout({ children }: { children: ReactNode }) {
     <div className="h-screen flex flex-col overflow-hidden">
       <header className="flex-shrink-0 h-16 flex items-center justify-between px-4 md:px-6 bg-[var(--bg-topbar)] border-b border-[var(--border-color)] z-30">
         <div className="flex items-center gap-3 min-w-0">
-          <button
-            onClick={() => setMobileOpen(true)}
-            className="lg:hidden p-2 rounded-lg hover:bg-[var(--bg-card)] transition-all duration-200 active:scale-95"
-          >
-            <Menu className="h-5 w-5" />
-          </button>
           <BeykerLogo />
           <div className="hidden sm:block min-w-0">
             <div className="font-bold text-base leading-tight truncate">Coldwell Banker Beyker</div>
@@ -84,7 +76,7 @@ export function Layout({ children }: { children: ReactNode }) {
               </div>
               <button
                 onClick={handleLogout}
-                className="p-2 rounded-lg hover:bg-[var(--bg-card)] transition-all duration-200 active:scale-95"
+                className="hidden md:inline-flex p-2 rounded-lg hover:bg-[var(--bg-card)] transition-all duration-200 active:scale-95"
                 title="Salir"
               >
                 <LogOut className="h-5 w-5" />
@@ -95,6 +87,7 @@ export function Layout({ children }: { children: ReactNode }) {
       </header>
 
       <div className="flex-1 flex min-h-0">
+        {/* Sidebar lateral SOLO en desktop (lg+). En mobile se usa BottomNav */}
         <aside className={`hidden lg:flex flex-shrink-0 flex-col bg-[var(--bg-sidebar)] text-[var(--text-sidebar)] border-r border-[var(--border-color)] transition-all duration-200 ${collapsed ? 'w-16' : 'w-64'}`}>
           <nav className="flex-1 min-h-0 overflow-y-auto p-3 space-y-1">
             {visible.map((item) => (
@@ -125,44 +118,15 @@ export function Layout({ children }: { children: ReactNode }) {
           </div>
         </aside>
 
-        {mobileOpen && (
-          <div className="lg:hidden fixed inset-0 z-40 flex">
-            <div className="fixed inset-0 bg-black/50" onClick={() => setMobileOpen(false)} />
-            <aside className="relative w-64 flex flex-col bg-[var(--bg-sidebar)] text-[var(--text-sidebar)]">
-              <div className="flex-shrink-0 flex items-center justify-between p-4 border-b border-white/10">
-                <span className="font-bold">Menú</span>
-                <button onClick={() => setMobileOpen(false)} className="p-2 rounded-lg hover:bg-white/10">
-                  <X className="h-5 w-5" />
-                </button>
-              </div>
-              <nav className="flex-1 min-h-0 overflow-y-auto p-3 space-y-1">
-                {visible.map((item) => (
-                  <NavLink
-                    key={item.to}
-                    to={item.to}
-                    end
-                    onClick={() => setMobileOpen(false)}
-                    className={({ isActive }) =>
-                      `flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-200 ${
-                        isActive
-                          ? 'bg-[var(--color-accent)] text-[var(--color-primary)] font-semibold'
-                          : 'hover:bg-white/10'
-                      }`
-                    }
-                  >
-                    <item.icon className="h-5 w-5" />
-                    <span>{item.label}</span>
-                  </NavLink>
-                ))}
-              </nav>
-            </aside>
-          </div>
-        )}
-
-        <main className="flex-1 flex flex-col min-w-0 bg-[var(--bg-app)] overflow-hidden">
+        {/* Main content. En mobile reserva padding-bottom para el BottomNav (56px + safe-area).
+           En lg+ no hace falta porque el sidebar lateral toma su lugar. */}
+        <main className="flex-1 flex flex-col min-w-0 bg-[var(--bg-app)] overflow-hidden pb-[calc(56px+env(safe-area-inset-bottom))] lg:pb-0">
           {children}
         </main>
       </div>
+
+      {/* Bottom navigation SOLO en mobile (oculta en lg+) */}
+      <BottomNav />
     </div>
   )
 }
