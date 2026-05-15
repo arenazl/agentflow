@@ -8,7 +8,7 @@
 import { ReactNode, useEffect, useState } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
 import {
-  Menu, X, ChevronLeft, ChevronRight, ChevronDown,
+  ChevronLeft, ChevronRight, ChevronDown,
   LayoutDashboard, ClipboardList, Users, Building2, Calendar,
   GitBranch, FileText, Settings, LogOut, GraduationCap, Layers, UserCog,
   MessageSquare, Brain, UserCircle, Search, Bell,
@@ -17,6 +17,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { ThemeSwitcher } from './ThemeSwitcher'
 import { AvailabilityToggle } from './AvailabilityToggle'
 import { BeykerLogo } from './BeykerLogo'
+import { BottomNav } from './BottomNav'
 
 interface NavItemDef {
   label: string
@@ -197,7 +198,6 @@ export function LayoutClassic({ children }: { children: ReactNode }) {
   const { user, logout } = useAuth()
   const navigate = useNavigate()
   const [collapsed, setCollapsed] = useState<boolean>(() => localStorage.getItem('layout:collapsed') === '1')
-  const [mobileOpen, setMobileOpen] = useState(false)
 
   useEffect(() => { localStorage.setItem('layout:collapsed', collapsed ? '1' : '0') }, [collapsed])
 
@@ -214,7 +214,13 @@ export function LayoutClassic({ children }: { children: ReactNode }) {
   const sidebarWidth = collapsed ? 68 : 248
 
   return (
-    <div className="h-screen flex flex-col overflow-hidden" style={{ backgroundColor: 'var(--bg-app)' }}>
+    <div
+      className="h-screen flex flex-col overflow-hidden"
+      style={{
+        backgroundColor: 'var(--bg-app)',
+        paddingTop: 'env(safe-area-inset-top)',
+      }}
+    >
       {/* === Topbar === */}
       <header
         className="flex-shrink-0 h-16 flex items-stretch z-30"
@@ -253,16 +259,8 @@ export function LayoutClassic({ children }: { children: ReactNode }) {
           )}
         </div>
 
-        {/* Mobile hamburger + brand chico */}
-        <div className="lg:hidden flex items-center gap-2 px-3">
-          <button
-            onClick={() => setMobileOpen(true)}
-            className="p-2 rounded-lg active:scale-95 transition-all duration-150"
-            style={{ color: 'var(--ink-2)' }}
-            aria-label="Menú"
-          >
-            <Menu className="h-5 w-5" />
-          </button>
+        {/* Mobile brand (sin hamburguesa — la nav mobile vive en BottomNav) */}
+        <div className="lg:hidden flex items-center gap-2 px-4">
           <BeykerLogo size={32} rounded={4} />
         </div>
 
@@ -386,50 +384,18 @@ export function LayoutClassic({ children }: { children: ReactNode }) {
           <SidebarContent collapsed={collapsed} visibleSections={visibleSections} />
         </aside>
 
-        {/* Sidebar mobile (drawer) */}
-        {mobileOpen && (
-          <div className="lg:hidden fixed inset-0 z-40 flex">
-            <div className="fixed inset-0 bg-black/50" onClick={() => setMobileOpen(false)} />
-            <aside
-              className="relative w-64 flex flex-col"
-              style={{
-                backgroundColor: 'var(--bg-sidebar)',
-                color: 'var(--text-sidebar)',
-              }}
-            >
-              <div
-                className="flex-shrink-0 flex items-center justify-between px-4 h-16"
-                style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.08)' }}
-              >
-                <div className="flex items-center gap-2">
-                  <BeykerLogo size={28} rounded={4} />
-                  <span className="font-bold text-sm" style={{ color: '#fff' }}>Menú</span>
-                </div>
-                <button
-                  onClick={() => setMobileOpen(false)}
-                  className="p-2 rounded-lg"
-                  style={{ color: 'rgba(255, 255, 255, 0.8)' }}
-                >
-                  <X className="h-5 w-5" />
-                </button>
-              </div>
-              <SidebarContent
-                collapsed={false}
-                visibleSections={visibleSections}
-                onItemClick={() => setMobileOpen(false)}
-              />
-            </aside>
-          </div>
-        )}
-
-        {/* Main */}
+        {/* Main. En mobile reserva padding-bottom para el BottomNav (56px + safe-area).
+            En lg+ no hace falta porque el sidebar lateral toma su lugar. */}
         <main
-          className="flex-1 flex flex-col min-w-0 overflow-hidden"
+          className="flex-1 flex flex-col min-w-0 overflow-hidden pb-[calc(56px+env(safe-area-inset-bottom))] lg:pb-0"
           style={{ backgroundColor: 'var(--bg-app)' }}
         >
           {children}
         </main>
       </div>
+
+      {/* Bottom navigation SOLO en mobile (oculta en lg+) */}
+      <BottomNav />
     </div>
   )
 }
