@@ -420,26 +420,50 @@ async def webhook_incoming(
     bot_response_text = None
     derivado_a = None
 
-    # Si la conv ya tiene un asignado humano, push notif (no procesa con bot)
+    # Si la conv ya tiene un asignado humano, notificar al vendedor (no procesa con bot)
     if c.assignee_id is not None and c.estado != WaConversacionEstado.bloqueada:
         import asyncio as _asyncio
         _conv_id = c.id
         _assignee = c.assignee_id
         _contacto = c.nombre_contacto or c.telefono
         _contenido_preview = payload.contenido[:120]
-        async def _bg_push():
+
+        # Lookup del telefono_personal del vendedor asignado
+        u_r = await db.execute(select(User).where(User.id == _assignee))
+        _vendedor = u_r.scalar_one_or_none()
+        _tel_personal = _vendedor.telefono_personal if _vendedor else None
+
+        async def _bg_notif_msg_nuevo():
             try:
                 async with AsyncSessionLocal() as db_bg:
-                    await notify_user(
-                        db_bg, _assignee,
-                        title=f"Mensaje de {_contacto}",
-                        body=_contenido_preview,
-                        url=f"/inbox?conv={_conv_id}",
-                        tag=f"conv-{_conv_id}",
-                    )
+                    # Push notif
+                    try:
+                        await notify_user(
+                            db_bg, _assignee,
+                            title=f"Mensaje de {_contacto}",
+                            body=_contenido_preview,
+                            url=f"/inbox?conv={_conv_id}",
+                            tag=f"conv-{_conv_id}",
+                        )
+                    except Exception as e:
+                        print(f"[bg push msg] error: {e}")
+
+                    # WhatsApp al telefono personal
+                    if _tel_personal:
+                        try:
+                            wa_msg = (
+                                f"[AgentFlow] {_contacto} respondio:\n\n"
+                                f"\"{_contenido_preview}\"\n\n"
+                                f"Abri la conversacion:\n"
+                                f"https://agentflow-beyker.netlify.app/inbox?conv={_conv_id}"
+                            )
+                            ok, mid, err = await _send_via_baileys(db_bg, _tel_personal, wa_msg)
+                            print(f"[bg wa msg nuevo] tel={_tel_personal} ok={ok} err={err}")
+                        except Exception as e:
+                            print(f"[bg wa msg nuevo] error: {e}")
             except Exception as e:
-                print(f"[bg push msg] error: {e}")
-        _asyncio.create_task(_bg_push())
+                print(f"[bg notif msg nuevo] error: {e}")
+        _asyncio.create_task(_bg_notif_msg_nuevo())
 
     if c.assignee_id is None and c.estado != WaConversacionEstado.bloqueada:
         bot_response_text, bot_action = await procesar_mensaje_entrante(db, c, m)
