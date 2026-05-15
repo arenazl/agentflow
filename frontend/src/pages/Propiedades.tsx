@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { MapPin, BedDouble, Maximize, Car, Trash2 } from 'lucide-react'
+import { MapPin, BedDouble, Maximize, Car, Trash2, CheckCircle2, Circle } from 'lucide-react'
 import { toast } from 'sonner'
 import {
   ABMPageClassic, ABMCardClassic, ABMBadgeClassic,
@@ -202,9 +202,9 @@ export function Propiedades() {
                     { value: `${p.ambientes}`,    label: 'Ambientes' },
                   ]}
                   footerText={
-                    <span className="flex items-center gap-2">
+                    <span className="flex items-center gap-2 flex-wrap">
                       <ABMBadgeClassic label={p.estado} tone={ESTADO_TONE[p.estado] ?? 'neutral'} />
-                      {p.exclusividad && <ABMBadgeClassic label="Exclusiva" tone="gold" />}
+                      <ExclusividadBadge active={p.exclusividad} />
                       <span>· {p.captador_nombre ?? '—'}</span>
                     </span>
                   }
@@ -219,7 +219,7 @@ export function Propiedades() {
               className="rounded-xl overflow-x-auto"
               style={{ backgroundColor: 'var(--surface)', border: '1px solid var(--border-color)' }}
             >
-              <table className="w-full text-sm border-collapse" style={{ minWidth: 800 }}>
+              <table className="w-full text-sm border-collapse" style={{ minWidth: 880 }}>
                 <thead>
                   <tr style={{ backgroundColor: 'var(--surface-3)' }}>
                     <th className="uppercase-label py-3 px-4 text-left">Propiedad</th>
@@ -228,6 +228,7 @@ export function Propiedades() {
                     <th className="uppercase-label py-3 px-4 text-right">m²</th>
                     <th className="uppercase-label py-3 px-4 text-right">Amb</th>
                     <th className="uppercase-label py-3 px-4 text-left">Estado</th>
+                    <th className="uppercase-label py-3 px-4 text-left">Exclusividad</th>
                     <th className="uppercase-label py-3 px-4 text-left">Captador</th>
                   </tr>
                 </thead>
@@ -238,7 +239,6 @@ export function Propiedades() {
                         <div className="font-semibold flex items-center gap-2">
                           <MapPin className="h-3.5 w-3.5" style={{ color: 'var(--gold-500)' }} />
                           {p.titulo}
-                          {p.exclusividad && <ABMBadgeClassic label="Exclusiva" tone="gold" />}
                         </div>
                         <div className="text-xs mt-0.5" style={{ color: 'var(--ink-4)' }}>{p.direccion}</div>
                       </td>
@@ -248,6 +248,9 @@ export function Propiedades() {
                       <td className="py-3 px-4 font-mono-tnum text-right">{p.ambientes}</td>
                       <td className="py-3 px-4">
                         <ABMBadgeClassic label={p.estado} tone={ESTADO_TONE[p.estado] ?? 'neutral'} />
+                      </td>
+                      <td className="py-3 px-4">
+                        <ExclusividadBadge active={p.exclusividad} />
                       </td>
                       <td className="py-3 px-4">{p.captador_nombre ?? '—'}</td>
                     </tr>
@@ -270,5 +273,38 @@ export function Propiedades() {
       </div>
       <AICoachPanel screen="propiedades" contextData={contextData} />
     </div>
+  )
+}
+
+/* Badge sutil para indicar exclusividad. Verde transparente con check
+   cuando es exclusiva, gris muy tenue cuando no. */
+function ExclusividadBadge({ active }: { active?: boolean }) {
+  if (active) {
+    return (
+      <span
+        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold"
+        style={{
+          backgroundColor: 'rgba(34, 197, 94, 0.12)',
+          color: 'rgb(34, 197, 94)',
+          border: '1px solid rgba(34, 197, 94, 0.25)',
+        }}
+      >
+        <CheckCircle2 className="h-3 w-3" />
+        Exclusiva
+      </span>
+    )
+  }
+  return (
+    <span
+      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px]"
+      style={{
+        backgroundColor: 'transparent',
+        color: 'var(--ink-5)',
+        border: '1px dashed var(--border-color)',
+      }}
+    >
+      <Circle className="h-3 w-3 opacity-50" />
+      Abierta
+    </span>
   )
 }
