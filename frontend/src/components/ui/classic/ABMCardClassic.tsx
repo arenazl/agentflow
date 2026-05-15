@@ -1,7 +1,7 @@
 /* ABMCardClassic — card del Template Classic CB para la vista "cards".
    Anatomía screenshot 2 (Coaches): avatar grande con dot → título serif →
    subtítulo → 3 stats serif → footer con stack de avatares + texto. */
-import { ReactNode } from 'react'
+import { CSSProperties, ReactNode } from 'react'
 import { ABMAvatarClassic, AvatarTone, AvatarDot } from './ABMAvatarClassic'
 import { ABMKebabMenu, KebabItem } from './ABMKebabMenu'
 
@@ -34,10 +34,12 @@ interface Props {
   /** click en toda la card */
   onClick?: () => void
   className?: string
+  /** style inline para casos como animationDelay del stagger */
+  style?: CSSProperties
 }
 
 export function ABMCardClassic({
-  avatar, title, subtitle, stats, footerAvatars, footerText, kebabItems, onClick, className = '',
+  avatar, title, subtitle, stats, footerAvatars, footerText, kebabItems, onClick, className = '', style: extraStyle,
 }: Props) {
   return (
     <article
@@ -47,6 +49,7 @@ export function ABMCardClassic({
         backgroundColor: 'var(--surface)',
         border: '1px solid var(--border-color)',
         boxShadow: '0 1px 0 rgba(14,43,79,0.04), 0 1px 2px rgba(14,43,79,0.04)',
+        ...(extraStyle || {}),
       }}
       onMouseEnter={(e) => {
         if (!onClick) return

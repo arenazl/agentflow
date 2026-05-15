@@ -155,9 +155,11 @@ export function Coaches() {
             <SkeletonGrid count={6} />
           ) : view === 'cards' ? (
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-              {filtered.map((c) => (
+              {filtered.map((c, i) => (
                 <ABMCardClassic
                   key={c.id}
+                  className="animate-fade-in-up"
+                  style={{ animationDelay: `${Math.min(i, 8) * 60}ms`, animationFillMode: 'both' }}
                   avatar={{ initials: c.nombre, tone: c.es_oficial ? 'gold' : 'navy' }}
                   title={c.nombre}
                   subtitle={c.descripcion ?? ''}

@@ -185,9 +185,11 @@ export function Propiedades() {
             <SkeletonGrid count={6} />
           ) : view === 'cards' ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
-              {filtered.map((p) => (
+              {filtered.map((p, i) => (
                 <ABMCardClassic
                   key={p.id}
+                  className="animate-fade-in-up"
+                  style={{ animationDelay: `${Math.min(i, 8) * 60}ms`, animationFillMode: 'both' }}
                   avatar={{
                     initials: p.barrio.slice(0, 2),
                     tone: p.exclusividad ? 'gold' : 'navy',

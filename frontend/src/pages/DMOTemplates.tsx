@@ -222,14 +222,16 @@ export function DMOTemplates() {
         </div>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          {templates.map((t) => (
+          {templates.map((t, i) => (
             <div
               key={t.id}
-              className="rounded-xl border p-5 transition-all duration-200 hover:-translate-y-0.5"
+              className="rounded-xl border p-5 transition-all duration-200 hover:-translate-y-0.5 animate-fade-in-up"
               style={{
                 backgroundColor: 'var(--bg-card)',
                 borderColor: t.es_default_inmobiliaria ? 'var(--color-accent)' : 'var(--border-color)',
                 boxShadow: t.es_default_inmobiliaria ? '0 0 0 1px var(--color-accent)' : 'none',
+                animationDelay: `${Math.min(i, 8) * 60}ms`,
+                animationFillMode: 'both',
               }}
             >
               <div className="flex items-start justify-between gap-3 mb-3">

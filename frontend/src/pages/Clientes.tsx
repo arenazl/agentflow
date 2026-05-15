@@ -381,12 +381,14 @@ export function Clientes() {
             />
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {filtered.map((c) => {
+              {filtered.map((c, i) => {
                 const temp = c.temperatura ? TEMP_BADGE[c.temperatura] : null
                 const etapa = ETAPA_BADGE[c.estado] ?? ETAPA_BADGE.nuevo
                 return (
                   <ABMCardClassic
                     key={c.id}
+                    className="animate-fade-in-up"
+                    style={{ animationDelay: `${Math.min(i, 8) * 60}ms`, animationFillMode: 'both' }}
                     avatar={{
                       initials: initialsOf(c.nombre, c.apellido),
                       tone: 'navy',

@@ -3,13 +3,16 @@ from pathlib import Path
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 from typing import Optional, Dict, Any
+from sqlalchemy.ext.asyncio import AsyncSession
 import json
 import hashlib
 import time
 
+from core.database import get_db
 from core.security import get_current_user
 from models.user import User
 from services.gemini import _generate
+from services.coach_context import enrich_context
 
 router = APIRouter()
 
@@ -78,32 +81,47 @@ def _cache_key(screen: str, context: Dict[str, Any]) -> str:
 
 
 @router.post("/", response_model=AICoachResponse)
-async def get_coach(payload: AICoachRequest, user: User = Depends(get_current_user)):
+async def get_coach(
+    payload: AICoachRequest,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
     manual = _load_screen_manual(payload.screen)
     if not manual:
         return AICoachResponse()
 
-    key = _cache_key(payload.screen, payload.context)
+    # Enriquecer el contexto con data cross-screen (leads WA pendientes, deals
+    # estancados, agentes online, ranking del equipo, visitas proximas, etc.)
+    enriched_context = await enrich_context(db, user, payload.screen, payload.context)
+
+    # El cache key se calcula sobre el contexto enriquecido para que si cambia
+    # algo "global" (ej: alguien responde un lead WA), el coach se refresque.
+    key = _cache_key(payload.screen, enriched_context)
     now = time.time()
     if key in _cache:
         ts, cached = _cache[key]
         if now - ts < _CACHE_TTL:
             return cached
 
-    context_json = json.dumps(payload.context, ensure_ascii=False, default=str, indent=2)
+    context_json = json.dumps(enriched_context, ensure_ascii=False, default=str, indent=2)
     prompt = (
         f"{manual}\n\n"
         f"---\n\n"
-        f"CONTEXTO ACTUAL (datos reales de la pantalla, en JSON):\n"
+        f"CONTEXTO ACTUAL (datos reales en JSON, incluye `_global` y `_personal` "
+        f"con señales cross-screen como leads WhatsApp sin responder, deals estancados, "
+        f"ranking del equipo, agentes online, visitas próximas):\n"
         f"```json\n{context_json}\n```\n\n"
-        f"Generá los 3 widgets siguiendo EXACTAMENTE el shape del 'Ejemplo de prompt resuelto' del manual.\n"
+        f"INSTRUCCION GENERAL:\n"
+        f"Generá los 3 widgets (hot_tip, next_action, streak) priorizando SIEMPRE las\n"
+        f"señales más urgentes que veas en el contexto. Si hay un lead caliente sin\n"
+        f"responder hace +4h en `_global.leads_wa_sin_responder_4h`, ESO es el hot_tip\n"
+        f"aunque la pantalla actual sea otra. Cross-screen tips son OK y deseables.\n\n"
         f'Respondé SOLO con JSON shape:\n'
         f'{{"hot_tip":{{"title":"...","body":"...","accent":"gold|flame|ok|blue",'
         f'"cta_label":"...","cta_action":{{...}}}},'
         f'"next_action":{{...}},"streak":{{...}}}}.\n'
-        f"Si algún widget no aplica, usar null en lugar de objeto. "
-        f"NUNCA inventes datos que no estén en el contexto. "
-        f"Si no hay datos calientes, dar un tip genérico del módulo (ver manual)."
+        f"Si algún widget no aplica, usar null. NUNCA inventes datos que no estén en el "
+        f"contexto enriquecido. Si no hay nada caliente, dar un tip genérico del módulo."
     )
 
     data = await _generate(prompt, json_mode=True, max_tokens=4000)
