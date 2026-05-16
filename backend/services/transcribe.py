@@ -46,6 +46,48 @@ async def _download_audio(url: str) -> Optional[Tuple[bytes, str]]:
         return None
 
 
+async def transcribe_audio_bytes(audio_bytes: bytes, filename: str = "audio.ogg") -> Optional[str]:
+    """Transcribe bytes de audio directamente via Groq Whisper.
+
+    Usado cuando el vendedor graba un audio desde el inbox para que el bot/Laura
+    lo diga con su voz (voice clone flow).
+    """
+    if not settings.GROQ_API_KEY:
+        print("[transcribe] GROQ_API_KEY no configurada, skip")
+        return None
+
+    ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else "ogg"
+    mime_map = {
+        "ogg": "audio/ogg", "oga": "audio/ogg", "opus": "audio/ogg",
+        "mp3": "audio/mpeg", "m4a": "audio/mp4",
+        "wav": "audio/wav", "webm": "audio/webm",
+    }
+    mime = mime_map.get(ext, "audio/ogg")
+
+    try:
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            files = {"file": (filename, audio_bytes, mime)}
+            data = {
+                "model": settings.GROQ_WHISPER_MODEL,
+                "language": "es",
+                "prompt": _BIAS_PROMPT,
+                "response_format": "json",
+                "temperature": "0",
+            }
+            r = await client.post(
+                f"{GROQ_BASE}/audio/transcriptions",
+                headers={"Authorization": f"Bearer {settings.GROQ_API_KEY}"},
+                files=files,
+                data=data,
+            )
+            r.raise_for_status()
+            text = (r.json().get("text") or "").strip()
+            return text or None
+    except Exception as e:
+        print(f"[transcribe] groq bytes error: {e}")
+        return None
+
+
 async def transcribe_audio_from_url(url: str) -> Optional[str]:
     """Transcribe una nota de voz de WhatsApp via Groq Whisper.
 

@@ -136,6 +136,15 @@ export const whatsappAPI = {
     api.patch(`/whatsapp/conversations/${id}`, data),
   send: (id: number, contenido: string, opts?: { as_audio?: boolean; voice_id?: string }) =>
     api.post(`/whatsapp/conversations/${id}/send`, { contenido, ...(opts || {}) }),
+  sendVoiceClone: (id: number, audioBlob: Blob, voiceId?: string) => {
+    const fd = new FormData()
+    fd.append('audio', audioBlob, 'voice.webm')
+    if (voiceId) fd.append('voice_id', voiceId)
+    return api.post(`/whatsapp/conversations/${id}/send-voice-clone`, fd, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      timeout: 90000,
+    })
+  },
   personalidades: () => api.get('/whatsapp/personalidades'),
   markRead: (id: number) => api.post(`/whatsapp/conversations/${id}/mark-read`),
   mockIncoming: (data: { telefono: string; nombre_contacto?: string; contenido: string }) =>

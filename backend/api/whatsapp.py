@@ -16,7 +16,7 @@ import os
 import httpx
 from datetime import datetime
 from typing import Optional, List
-from fastapi import APIRouter, Depends, HTTPException, Query, Header
+from fastapi import APIRouter, Depends, HTTPException, Query, Header, UploadFile, File, Form
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_, desc, update
 from sqlalchemy.orm import selectinload
@@ -355,6 +355,80 @@ async def list_personalidades(
         return data
     except Exception as e:
         raise HTTPException(500, f"No se pudo cargar el catalogo: {e}")
+
+
+@router.post("/conversations/{conv_id}/send-voice-clone")
+async def send_voice_clone(
+    conv_id: int,
+    audio: UploadFile = File(...),
+    voice_id: Optional[str] = Form(None),
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Voice-clone flow: el vendedor graba un audio, lo transcribimos con Whisper
+    y mandamos al destinatario con la voz del bot (Laura/quien sea) via ElevenLabs.
+
+    El cliente recibe una nota de voz que NO es la voz del vendedor sino la del
+    perfil custom. Soluciona el caso "yo hablo, llega con la voz de Laura".
+    """
+    r = await db.execute(select(WhatsappConversation).where(WhatsappConversation.id == conv_id))
+    c = r.scalar_one_or_none()
+    if not c:
+        raise HTTPException(404, "Conversacion no encontrada")
+
+    raw_bytes = await audio.read()
+    if not raw_bytes or len(raw_bytes) < 500:
+        raise HTTPException(400, "Audio vacio o demasiado corto")
+
+    # 1. Transcribir con Whisper
+    from services.transcribe import transcribe_audio_bytes
+    filename = audio.filename or "voice.webm"
+    transcripcion = await transcribe_audio_bytes(raw_bytes, filename=filename)
+    if not transcripcion:
+        raise HTTPException(502, "No se pudo transcribir el audio (Whisper)")
+
+    # 2. Sintetizar con la voz target via ElevenLabs
+    from services.tts import synthesize_to_cloudinary
+    target_voice = voice_id or c.voice_id or None
+    audio_url_out = await synthesize_to_cloudinary(
+        transcripcion,
+        voice_id=target_voice,
+        prefix=f"vclone_c{conv_id}_u{user.id}",
+    )
+    if not audio_url_out:
+        raise HTTPException(502, "No se pudo sintetizar audio con ElevenLabs (chequea creditos)")
+
+    # 3. Mandar via Baileys como nota de voz
+    ok, meta_id, err = await _send_via_baileys(
+        db, c.telefono, transcripcion, audio_url=audio_url_out
+    )
+
+    # 4. Guardar en BD
+    contenido_guardado = f"[audio] {audio_url_out}\n\n[Transcripcion] {transcripcion}"
+    m = WhatsappMessage(
+        conversation_id=conv_id,
+        direccion=WaMensajeDireccion.outbound,
+        sender_id=user.id,
+        contenido=contenido_guardado,
+        leido=True,
+        meta_message_id=meta_id,
+    )
+    db.add(m)
+    if c.assignee_id is None:
+        c.assignee_id = user.id
+    if c.estado == WaConversacionEstado.nueva:
+        c.estado = WaConversacionEstado.abierta
+    c.ultima_actividad = datetime.utcnow()
+    await db.commit()
+    await db.refresh(m)
+
+    return {
+        "id": m.id,
+        "transcripcion": transcripcion,
+        "audio_url": audio_url_out,
+        "sent_via_baileys": ok,
+        "baileys_error": err,
+    }
 
 
 @router.post("/iniciar-conversacion")

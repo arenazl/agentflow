@@ -4,7 +4,7 @@ import { toast } from 'sonner'
 import {
   MessageSquare, Send, Search, Phone, User as UserIcon,
   CheckCheck, Clock as ClockIcon, AlertOctagon, Archive,
-  PlusCircle, RefreshCw, ArrowLeft, MoreVertical, X as XIcon, Sparkles, Wand2, Mic, Type,
+  PlusCircle, RefreshCw, ArrowLeft, MoreVertical, X as XIcon, Sparkles, Wand2, Mic, Type, Trash2,
 } from 'lucide-react'
 import { whatsappAPI, usersAPI } from '../services/api'
 import { useAuth } from '../contexts/AuthContext'
@@ -69,6 +69,16 @@ export function Inbox() {
   const [quickSending, setQuickSending] = useState(false)
   const [sendAsAudio, setSendAsAudio] = useState(false)
   const [personalidades, setPersonalidades] = useState<Personalidad[]>([])
+  // Voice clone press-and-hold
+  const [recording, setRecording] = useState(false)
+  const [recordSec, setRecordSec] = useState(0)
+  const [voiceSending, setVoiceSending] = useState(false)
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null)
+  const recordChunksRef = useRef<Blob[]>([])
+  const recordStreamRef = useRef<MediaStream | null>(null)
+  const recordTimerRef = useRef<number | null>(null)
+  const recordCanceledRef = useRef(false)
+  const recordStartTsRef = useRef(0)
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
   const load = async () => {
@@ -227,6 +237,90 @@ export function Inbox() {
       toast.error(e?.response?.data?.detail || 'Error al disparar')
     } finally {
       setQuickSending(false)
+    }
+  }
+
+  // === Voice-clone press-and-hold ===
+
+  const startRecording = async () => {
+    if (recording || voiceSending || !detail) return
+    if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') {
+      toast.error('Tu navegador no soporta grabación de audio')
+      return
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      recordStreamRef.current = stream
+      recordChunksRef.current = []
+      recordCanceledRef.current = false
+      recordStartTsRef.current = Date.now()
+      // Elegir mime que el browser soporte
+      let mime = 'audio/webm;codecs=opus'
+      if (!MediaRecorder.isTypeSupported(mime)) {
+        mime = 'audio/webm'
+        if (!MediaRecorder.isTypeSupported(mime)) {
+          mime = ''
+        }
+      }
+      const mr = mime ? new MediaRecorder(stream, { mimeType: mime }) : new MediaRecorder(stream)
+      mediaRecorderRef.current = mr
+      mr.ondataavailable = (e) => {
+        if (e.data && e.data.size > 0) recordChunksRef.current.push(e.data)
+      }
+      mr.onstop = async () => {
+        // Cerrar stream del mic
+        recordStreamRef.current?.getTracks().forEach((t) => t.stop())
+        recordStreamRef.current = null
+        if (recordTimerRef.current) {
+          window.clearInterval(recordTimerRef.current)
+          recordTimerRef.current = null
+        }
+        const wasCanceled = recordCanceledRef.current
+        recordCanceledRef.current = false
+        const duration = Date.now() - recordStartTsRef.current
+        setRecording(false)
+        setRecordSec(0)
+        if (wasCanceled || duration < 1000) {
+          // Demasiado corto o cancelado
+          return
+        }
+        const blob = new Blob(recordChunksRef.current, { type: mr.mimeType || 'audio/webm' })
+        if (blob.size < 500) return
+        await uploadVoiceClone(blob)
+      }
+      mr.start(100)
+      setRecording(true)
+      setRecordSec(0)
+      recordTimerRef.current = window.setInterval(() => {
+        setRecordSec((s) => s + 1)
+      }, 1000)
+    } catch (e: any) {
+      const msg = e?.message || String(e)
+      toast.error(msg.includes('Permission') ? 'Habilitá el permiso del micrófono' : 'No pude acceder al micrófono')
+    }
+  }
+
+  const stopRecording = (cancel: boolean) => {
+    if (!recording || !mediaRecorderRef.current) return
+    recordCanceledRef.current = cancel
+    try {
+      mediaRecorderRef.current.stop()
+    } catch {/* noop */}
+  }
+
+  const uploadVoiceClone = async (blob: Blob) => {
+    if (!detail) return
+    setVoiceSending(true)
+    try {
+      const r = await whatsappAPI.sendVoiceClone(detail.id, blob)
+      await loadDetail(detail.id)
+      load()
+      toast.success(`Audio enviado: "${(r.data?.transcripcion || '').slice(0, 40)}..."`)
+    } catch (e: any) {
+      const detailMsg = e?.response?.data?.detail || e?.message || 'Error al enviar audio'
+      toast.error(detailMsg)
+    } finally {
+      setVoiceSending(false)
     }
   }
 
@@ -669,47 +763,95 @@ export function Inbox() {
                 paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))',
               }}
             >
-              <div className="flex items-end gap-2">
-                <button
-                  type="button"
-                  onClick={() => setSendAsAudio((v) => !v)}
-                  disabled={detail.estado === 'bloqueada' || sending}
-                  className="flex-shrink-0 flex items-center justify-center w-11 h-11 rounded-full border transition-all duration-200 active:scale-95 disabled:opacity-40"
-                  style={{
-                    borderColor: sendAsAudio ? 'var(--color-primary)' : 'var(--border-color)',
-                    backgroundColor: sendAsAudio ? 'var(--color-primary)' : 'transparent',
-                    color: sendAsAudio ? '#fff' : 'var(--ink-3)',
-                  }}
-                  title={sendAsAudio ? 'Modo audio: tu texto se mandará como nota de voz (TTS)' : 'Cambiar a modo audio (TTS)'}
-                  aria-label="Modo audio"
-                >
-                  {sendAsAudio ? <Mic className="h-5 w-5" /> : <Type className="h-5 w-5" />}
-                </button>
-                <textarea
-                  rows={1}
-                  value={draft}
-                  onChange={(e) => {
-                    setDraft(e.target.value)
-                    const el = e.target as HTMLTextAreaElement
-                    el.style.height = 'auto'
-                    el.style.height = Math.min(el.scrollHeight, 120) + 'px'
-                  }}
-                  onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey && !('ontouchstart' in window)) { e.preventDefault(); handleSend() } }}
-                  placeholder={detail.estado === 'bloqueada' ? 'Conversación bloqueada' : (sendAsAudio ? 'Escribí lo que querés que diga la voz...' : 'Escribí una respuesta...')}
-                  disabled={detail.estado === 'bloqueada' || sending}
-                  className="flex-1 px-3 py-2.5 rounded-2xl border bg-[var(--bg-app)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] disabled:opacity-50 text-base md:text-sm resize-none"
-                  style={{ borderColor: 'var(--border-color)', minHeight: 44 }}
-                />
-                <button
-                  onClick={handleSend}
-                  disabled={!draft.trim() || sending || detail.estado === 'bloqueada'}
-                  className="flex-shrink-0 flex items-center justify-center w-11 h-11 rounded-full text-white transition-all duration-200 active:scale-95 disabled:opacity-40"
-                  style={{ backgroundColor: 'var(--color-primary)' }}
-                  aria-label="Enviar"
-                >
-                  <Send className="h-5 w-5" />
-                </button>
-              </div>
+              {recording ? (
+                <div className="flex items-center gap-3 px-3 py-2 rounded-2xl border" style={{ borderColor: 'var(--color-danger)', backgroundColor: 'rgba(239,68,68,0.06)' }}>
+                  <div className="flex items-center gap-2 flex-1">
+                    <span className="inline-block w-3 h-3 rounded-full animate-pulse" style={{ backgroundColor: 'var(--color-danger)' }} />
+                    <span className="text-sm font-mono-tnum font-semibold" style={{ color: 'var(--color-danger)' }}>
+                      {Math.floor(recordSec / 60)}:{String(recordSec % 60).padStart(2, '0')}
+                    </span>
+                    <span className="text-xs" style={{ color: 'var(--text-secondary)' }}>
+                      Grabando... soltá para enviar
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => stopRecording(true)}
+                    className="flex-shrink-0 flex items-center justify-center w-9 h-9 rounded-full border active:scale-95"
+                    style={{ borderColor: 'var(--border-color)', color: 'var(--text-secondary)' }}
+                    title="Cancelar"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </div>
+              ) : (
+                <div className="flex items-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setSendAsAudio((v) => !v)}
+                    disabled={detail.estado === 'bloqueada' || sending || voiceSending}
+                    className="flex-shrink-0 flex items-center justify-center w-11 h-11 rounded-full border transition-all duration-200 active:scale-95 disabled:opacity-40"
+                    style={{
+                      borderColor: sendAsAudio ? 'var(--color-primary)' : 'var(--border-color)',
+                      backgroundColor: sendAsAudio ? 'var(--color-primary)' : 'transparent',
+                      color: sendAsAudio ? '#fff' : 'var(--ink-3)',
+                    }}
+                    title={sendAsAudio ? 'Texto → audio TTS' : 'Modo texto'}
+                    aria-label="Modo TTS"
+                  >
+                    {sendAsAudio ? <Mic className="h-5 w-5" /> : <Type className="h-5 w-5" />}
+                  </button>
+                  <textarea
+                    rows={1}
+                    value={draft}
+                    onChange={(e) => {
+                      setDraft(e.target.value)
+                      const el = e.target as HTMLTextAreaElement
+                      el.style.height = 'auto'
+                      el.style.height = Math.min(el.scrollHeight, 120) + 'px'
+                    }}
+                    onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey && !('ontouchstart' in window)) { e.preventDefault(); handleSend() } }}
+                    placeholder={detail.estado === 'bloqueada' ? 'Conversación bloqueada' : (sendAsAudio ? 'Escribí lo que querés que diga la voz...' : 'Escribí o mantené el mic para hablar...')}
+                    disabled={detail.estado === 'bloqueada' || sending || voiceSending}
+                    className="flex-1 px-3 py-2.5 rounded-2xl border bg-[var(--bg-app)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] disabled:opacity-50 text-base md:text-sm resize-none"
+                    style={{ borderColor: 'var(--border-color)', minHeight: 44 }}
+                  />
+                  {draft.trim() ? (
+                    <button
+                      onClick={handleSend}
+                      disabled={sending || detail.estado === 'bloqueada' || voiceSending}
+                      className="flex-shrink-0 flex items-center justify-center w-11 h-11 rounded-full text-white transition-all duration-200 active:scale-95 disabled:opacity-40"
+                      style={{ backgroundColor: 'var(--color-primary)' }}
+                      aria-label="Enviar"
+                    >
+                      <Send className="h-5 w-5" />
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      disabled={detail.estado === 'bloqueada' || voiceSending}
+                      onMouseDown={(e) => { e.preventDefault(); startRecording() }}
+                      onMouseUp={() => stopRecording(false)}
+                      onMouseLeave={() => { if (recording) stopRecording(true) }}
+                      onTouchStart={(e) => { e.preventDefault(); startRecording() }}
+                      onTouchEnd={(e) => { e.preventDefault(); stopRecording(false) }}
+                      onTouchCancel={() => stopRecording(true)}
+                      className="flex-shrink-0 flex items-center justify-center w-11 h-11 rounded-full text-white transition-all duration-200 active:scale-95 disabled:opacity-40 select-none"
+                      style={{ backgroundColor: voiceSending ? 'var(--text-secondary)' : 'var(--color-primary)' }}
+                      title="Mantené apretado para grabar con voz clonada"
+                      aria-label="Grabar voz"
+                    >
+                      <Mic className="h-5 w-5" />
+                    </button>
+                  )}
+                </div>
+              )}
+              {voiceSending && (
+                <div className="mt-2 text-xs flex items-center gap-2" style={{ color: 'var(--text-secondary)' }}>
+                  <span className="inline-block w-2 h-2 rounded-full animate-pulse" style={{ backgroundColor: 'var(--color-primary)' }} />
+                  Procesando audio... transcribiendo + clonando voz
+                </div>
+              )}
             </footer>
           </>
         )}
