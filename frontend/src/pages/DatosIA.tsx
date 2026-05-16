@@ -3,14 +3,16 @@ import { toast } from 'sonner'
 import {
   Brain, Building2, MessageSquare, Wand2, HelpCircle, Save,
   Plus, Pencil, Trash2, RefreshCw, Wifi, WifiOff, Circle,
+  Sparkles, Send,
 } from 'lucide-react'
+import { whatsappAPI } from '../services/api'
 import { botConfigAPI } from '../services/api'
 import { SideModal } from '../components/SideModal'
 import { ConfirmModal } from '../components/ConfirmModal'
 import { useAuth } from '../contexts/AuthContext'
 import type { BotConfig, BaileysStatus, BotFaq } from '../types'
 
-type TabKey = 'empresa' | 'whatsapp' | 'tono' | 'faq'
+type TabKey = 'empresa' | 'whatsapp' | 'tono' | 'faq' | 'joda'
 
 export function DatosIA() {
   const { user } = useAuth()
@@ -53,6 +55,7 @@ export function DatosIA() {
     { key: 'whatsapp', label: 'Conexion WhatsApp', icon: MessageSquare },
     { key: 'tono', label: 'Tono y reglas', icon: Wand2 },
     { key: 'faq', label: 'FAQ', icon: HelpCircle },
+    { key: 'joda', label: 'Joda de hoy', icon: Sparkles },
   ]
 
   return (
@@ -68,7 +71,7 @@ export function DatosIA() {
               </p>
             </div>
           </div>
-          {canEdit && dirty && tab !== 'faq' && (
+          {canEdit && dirty && tab !== 'faq' && tab !== 'joda' && (
             <button
               onClick={save}
               disabled={saving}
@@ -107,6 +110,7 @@ export function DatosIA() {
         {tab === 'whatsapp' && <TabWhatsapp draft={draft} setDraft={setDraft} canEdit={canEdit} />}
         {tab === 'tono' && <TabTono draft={draft} setDraft={setDraft} canEdit={canEdit} />}
         {tab === 'faq' && <TabFaq canEdit={canEdit} />}
+        {tab === 'joda' && <TabJoda draft={draft} setDraft={setDraft} canEdit={canEdit} onSaved={load} />}
       </div>
     </div>
   )
@@ -482,6 +486,134 @@ function TabFaq({ canEdit }: { canEdit: boolean }) {
         confirmLabel="Eliminar"
         variant="danger"
       />
+    </div>
+  )
+}
+
+// ---------- TAB 5: Joda de hoy ----------
+
+interface TabJodaProps {
+  draft: BotConfig
+  setDraft: (b: BotConfig) => void
+  canEdit: boolean
+  onSaved: () => void
+}
+
+function TabJoda({ draft, setDraft, canEdit, onSaved }: TabJodaProps) {
+  const set = (k: keyof BotConfig, v: string) => setDraft({ ...draft, [k]: v })
+  const [saving, setSaving] = useState(false)
+  const [firing, setFiring] = useState(false)
+
+  const guardar = async () => {
+    setSaving(true)
+    try {
+      await botConfigAPI.update({
+        joda_telefono: draft.joda_telefono,
+        joda_prompt: draft.joda_prompt,
+        joda_saludo: draft.joda_saludo,
+      } as Partial<BotConfig>)
+      toast.success('Configuracion de joda guardada')
+      onSaved()
+    } catch {
+      toast.error('Error al guardar')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const disparar = async () => {
+    const tel = (draft.joda_telefono || '').trim()
+    const prompt = (draft.joda_prompt || '').trim()
+    const saludo = (draft.joda_saludo || '').trim()
+    if (!tel || !prompt || !saludo) {
+      toast.error('Completa telefono, prompt y saludo antes de disparar')
+      return
+    }
+    setFiring(true)
+    try {
+      await whatsappAPI.iniciarConversacion({
+        telefono: tel,
+        prompt,
+        primer_mensaje: saludo,
+      })
+      toast.success('Conversacion disparada. Cuando responda, el bot sigue solo.')
+    } catch (e: any) {
+      toast.error(e?.response?.data?.detail || 'Error al disparar')
+    } finally {
+      setFiring(false)
+    }
+  }
+
+  return (
+    <div className="space-y-6 max-w-4xl">
+      <div
+        className="p-4 rounded-lg border text-sm"
+        style={{
+          backgroundColor: 'rgba(245, 158, 11, 0.08)',
+          borderColor: 'rgba(245, 158, 11, 0.3)',
+          color: 'var(--text-primary)',
+        }}
+      >
+        <p className="font-medium mb-1">Modo proactivo — perfil custom</p>
+        <p style={{ color: 'var(--text-secondary)' }}>
+          Carga un telefono, un prompt de identidad y un saludo inicial. Al tocar <strong>Disparar</strong>,
+          el bot manda el saludo a ese numero usando esa identidad (en vez del prompt de Beyker).
+          Cuando el destinatario responda, sigue la charla solo con ese prompt.
+        </p>
+      </div>
+
+      <Field label="Telefono destino (E.164, sin +)" full>
+        <Input
+          value={draft.joda_telefono}
+          onChange={(v) => set('joda_telefono', v)}
+          disabled={!canEdit}
+          placeholder="5491143999948"
+        />
+      </Field>
+
+      <Field label="Prompt personalizado (identidad / personalidad del bot)" full>
+        <Textarea
+          value={draft.joda_prompt}
+          onChange={(v) => set('joda_prompt', v)}
+          disabled={!canEdit}
+          rows={14}
+          placeholder="Sos Laura, 28 anios, de Moreno. Le estas escribiendo a..."
+        />
+      </Field>
+
+      <Field label="Saludo inicial (primer mensaje que se envia)" full>
+        <Textarea
+          value={draft.joda_saludo}
+          onChange={(v) => set('joda_saludo', v)}
+          disabled={!canEdit}
+          rows={3}
+          placeholder="Hola Ro, que onda? podes hablar?"
+        />
+      </Field>
+
+      <div className="flex items-center gap-2 pt-2">
+        <button
+          type="button"
+          onClick={guardar}
+          disabled={!canEdit || saving}
+          className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium border transition-all active:scale-95 disabled:opacity-50"
+          style={{ borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
+        >
+          <Save className="h-4 w-4" />
+          {saving ? 'Guardando...' : 'Guardar'}
+        </button>
+
+        <button
+          type="button"
+          onClick={disparar}
+          disabled={!canEdit || firing}
+          className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold text-white transition-all active:scale-95 disabled:opacity-50"
+          style={{ backgroundColor: 'var(--color-primary)' }}
+        >
+          <Send className="h-4 w-4" />
+          {firing ? 'Disparando...' : 'Disparar conversacion'}
+        </button>
+      </div>
     </div>
   )
 }

@@ -228,6 +228,9 @@ export interface BotConfig {
   palabras_derivacion_extra?: string | null
   identidad_extra?: string | null
   diferencial_extra?: string | null
+  joda_telefono?: string | null
+  joda_prompt?: string | null
+  joda_saludo?: string | null
   updated_at?: string | null
 }
 

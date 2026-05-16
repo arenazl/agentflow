@@ -31,6 +31,10 @@ class BotConfigBase(BaseModel):
     # Tab 4: textareas
     identidad_extra: Optional[str] = None
     diferencial_extra: Optional[str] = None
+    # Tab 5: Joda de hoy (perfil custom proactivo)
+    joda_telefono: Optional[str] = None
+    joda_prompt: Optional[str] = None
+    joda_saludo: Optional[str] = None
 
 
 class BotConfigResponse(BotConfigBase):

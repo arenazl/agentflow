@@ -44,6 +44,11 @@ class BotConfig(Base):
     identidad_extra = Column(Text, nullable=True)
     diferencial_extra = Column(Text, nullable=True)
 
+    # --- Tab 5: Joda de hoy (perfil custom proactivo) ---
+    joda_telefono = Column(String(40), nullable=True)
+    joda_prompt = Column(Text, nullable=True)
+    joda_saludo = Column(Text, nullable=True)
+
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
 

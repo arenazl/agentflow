@@ -139,6 +139,8 @@ export const whatsappAPI = {
   markRead: (id: number) => api.post(`/whatsapp/conversations/${id}/mark-read`),
   mockIncoming: (data: { telefono: string; nombre_contacto?: string; contenido: string }) =>
     api.post('/whatsapp/mock/incoming', data),
+  iniciarConversacion: (data: { telefono: string; prompt: string; primer_mensaje: string; nombre?: string }) =>
+    api.post('/whatsapp/iniciar-conversacion', data),
 }
 
 export default api
