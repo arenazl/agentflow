@@ -282,6 +282,7 @@ export interface WhatsappConversation {
   unread_count: number
   ultimo_mensaje?: string | null
   ultimo_mensaje_direccion?: WaMsgDireccion | null
+  prompt_override?: string | null
   created_at: string
 }
 

@@ -51,6 +51,7 @@ class WhatsappConversationResponse(BaseModel):
     unread_count: int
     ultimo_mensaje: Optional[str] = None
     ultimo_mensaje_direccion: Optional[str] = None
+    prompt_override: Optional[str] = None
     created_at: datetime
 
     class Config:
@@ -70,6 +71,7 @@ class WhatsappConversationUpdate(BaseModel):
     estado: Optional[str] = None
     cliente_id: Optional[int] = None
     nombre_contacto: Optional[str] = None
+    prompt_override: Optional[str] = None
 
 
 # ---------- Webhook mock ----------

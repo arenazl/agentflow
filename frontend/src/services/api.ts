@@ -132,7 +132,7 @@ export const whatsappAPI = {
   list: (params?: { estado?: string; only_mine?: boolean; only_unassigned?: boolean }) =>
     api.get('/whatsapp/conversations/', { params }),
   get: (id: number) => api.get(`/whatsapp/conversations/${id}`),
-  update: (id: number, data: { assignee_id?: number | null; estado?: string; cliente_id?: number | null; nombre_contacto?: string | null }) =>
+  update: (id: number, data: { assignee_id?: number | null; estado?: string; cliente_id?: number | null; nombre_contacto?: string | null; prompt_override?: string | null }) =>
     api.patch(`/whatsapp/conversations/${id}`, data),
   send: (id: number, contenido: string) =>
     api.post(`/whatsapp/conversations/${id}/send`, { contenido }),

@@ -234,6 +234,9 @@ async def update_conversation(
         c.cliente_id = data["cliente_id"]
     if "nombre_contacto" in data:
         c.nombre_contacto = data["nombre_contacto"]
+    if "prompt_override" in data:
+        # None / "" libera el override y vuelve al prompt Beyker normal
+        c.prompt_override = data["prompt_override"] or None
 
     await db.commit()
     await db.refresh(c)

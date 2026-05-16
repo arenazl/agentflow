@@ -4,7 +4,7 @@ import { toast } from 'sonner'
 import {
   MessageSquare, Send, Search, Phone, User as UserIcon,
   CheckCheck, Clock as ClockIcon, AlertOctagon, Archive,
-  PlusCircle, RefreshCw, ArrowLeft, MoreVertical, X as XIcon,
+  PlusCircle, RefreshCw, ArrowLeft, MoreVertical, X as XIcon, Sparkles,
 } from 'lucide-react'
 import { whatsappAPI, usersAPI } from '../services/api'
 import { useAuth } from '../contexts/AuthContext'
@@ -59,6 +59,9 @@ export function Inbox() {
   const [sending, setSending] = useState(false)
   const [draft, setDraft] = useState('')
   const [mockOpen, setMockOpen] = useState(false)
+  const [promptOpen, setPromptOpen] = useState(false)
+  const [promptDraft, setPromptDraft] = useState('')
+  const [savingPrompt, setSavingPrompt] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
   const load = async () => {
@@ -155,6 +158,31 @@ export function Inbox() {
       load()
     } catch { toast.error('No se pudo enviar') }
     finally { setSending(false) }
+  }
+
+  const openPromptEditor = () => {
+    if (!detail) return
+    setPromptDraft(detail.prompt_override ?? '')
+    setPromptOpen(true)
+  }
+
+  const savePrompt = async () => {
+    if (!detail) return
+    setSavingPrompt(true)
+    try {
+      await whatsappAPI.update(detail.id, { prompt_override: promptDraft })
+      await loadDetail(detail.id)
+      setPromptOpen(false)
+      toast.success(promptDraft.trim() ? 'Prompt actualizado' : 'Prompt limpiado (vuelve al bot Beyker)')
+    } catch {
+      toast.error('Error al guardar el prompt')
+    } finally {
+      setSavingPrompt(false)
+    }
+  }
+
+  const appendToPrompt = (extra: string) => {
+    setPromptDraft((p) => (p ? p.trimEnd() + '\n\n' + extra : extra))
   }
 
   const handleAssign = async (vendedorId: number | null) => {
@@ -406,6 +434,19 @@ export function Inbox() {
 
               {/* Selects desktop / kebab mobile */}
               <div className="hidden md:flex items-center gap-2 flex-shrink-0">
+                <button
+                  type="button"
+                  onClick={openPromptEditor}
+                  className="text-xs px-2.5 py-1.5 rounded border bg-transparent inline-flex items-center gap-1.5 active:scale-95"
+                  style={{
+                    borderColor: detail.prompt_override ? 'var(--color-accent)' : 'var(--border-color)',
+                    color: detail.prompt_override ? 'var(--color-accent)' : 'var(--text-secondary)',
+                  }}
+                  title={detail.prompt_override ? 'Prompt custom activo — editar' : 'Editar prompt del bot'}
+                >
+                  <Sparkles className="h-3.5 w-3.5" />
+                  Prompt {detail.prompt_override ? '✓' : ''}
+                </button>
                 <select
                   value={detail.assignee_id ?? ''}
                   onChange={(e) => handleAssign(e.target.value ? Number(e.target.value) : null)}
@@ -484,6 +525,18 @@ export function Inbox() {
                         <option value="bloqueada">Bloqueada</option>
                       </select>
                     </div>
+                    <button
+                      type="button"
+                      onClick={() => { setChatMenuOpen(false); openPromptEditor() }}
+                      className="w-full flex items-center gap-2 px-3 py-2.5 rounded-lg border text-sm font-medium active:scale-95"
+                      style={{
+                        borderColor: detail.prompt_override ? 'var(--color-accent)' : 'var(--border-color)',
+                        color: detail.prompt_override ? 'var(--color-accent)' : 'var(--text-primary)',
+                      }}
+                    >
+                      <Sparkles className="h-4 w-4" />
+                      {detail.prompt_override ? 'Editar prompt custom' : 'Asignar prompt custom'}
+                    </button>
                   </div>
                 </div>
               </div>
@@ -576,6 +629,100 @@ export function Inbox() {
       </main>
 
       <MockIncomingModal isOpen={mockOpen} onClose={() => setMockOpen(false)} onSent={() => { setMockOpen(false); load() }} />
+
+      {/* Modal: editar prompt custom de la conv */}
+      {promptOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-0 sm:p-4">
+          <div className="absolute inset-0 bg-black/60" onClick={() => !savingPrompt && setPromptOpen(false)} />
+          <div
+            className="relative w-full sm:max-w-2xl h-full sm:h-auto sm:max-h-[90vh] sm:rounded-2xl flex flex-col overflow-hidden"
+            style={{ backgroundColor: 'var(--bg-card)', paddingTop: 'env(safe-area-inset-top)' }}
+          >
+            <div className="flex-shrink-0 flex items-center justify-between px-4 py-3 border-b" style={{ borderColor: 'var(--border-color)' }}>
+              <div className="flex items-center gap-2">
+                <Sparkles className="h-5 w-5" style={{ color: 'var(--color-accent)' }} />
+                <h3 className="font-bold text-lg">Prompt del bot</h3>
+              </div>
+              <button onClick={() => !savingPrompt && setPromptOpen(false)} className="p-2 -mr-1 rounded-lg hover:bg-black/5">
+                <XIcon className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="flex-1 min-h-0 overflow-y-auto p-4 space-y-3">
+              <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>
+                Esta conversacion va a usar este prompt en lugar del bot Beyker. Si lo dejas vacio, vuelve al bot por defecto.
+                Tip: podes <em>agregar</em> instrucciones al final con los chips de abajo, sin reescribir todo.
+              </p>
+
+              <textarea
+                value={promptDraft}
+                onChange={(e) => setPromptDraft(e.target.value)}
+                rows={18}
+                placeholder="Sos Laura, 28 anios..."
+                className="w-full px-3 py-2 rounded-lg border bg-transparent text-sm resize-y font-mono"
+                style={{ borderColor: 'var(--border-color)', minHeight: 280 }}
+              />
+
+              <div>
+                <div className="text-[11px] font-semibold uppercase tracking-wider mb-2" style={{ color: 'var(--text-secondary)' }}>
+                  Acumular instruccion rapida
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {[
+                    'Aflojate un poco, esta cerrandose. Mostrate mas vulnerable y curiosa por el.',
+                    'Subi la intensidad. Tirale algo mas picaro y proponele verse.',
+                    'Cambialo de tema: preguntale por su ultimo viaje.',
+                    'Hace silencio largo, manda un solo mensaje corto y dejalo pensando.',
+                    'Si insiste con preguntar quien sos, no le aclares. Generale mas intriga.',
+                  ].map((t, i) => (
+                    <button
+                      key={i}
+                      type="button"
+                      onClick={() => appendToPrompt(`INSTRUCCION EXTRA: ${t}`)}
+                      className="text-xs px-2.5 py-1.5 rounded-full border active:scale-95"
+                      style={{ borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
+                    >
+                      + {t.slice(0, 40)}{t.length > 40 ? '...' : ''}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="flex-shrink-0 flex items-center justify-between gap-2 p-4 border-t" style={{ borderColor: 'var(--border-color)', paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}>
+              <button
+                type="button"
+                onClick={() => { setPromptDraft(''); }}
+                disabled={savingPrompt}
+                className="text-xs px-3 py-2 rounded-lg border active:scale-95 disabled:opacity-50"
+                style={{ borderColor: 'var(--border-color)', color: 'var(--color-danger)' }}
+              >
+                Limpiar (volver a Beyker)
+              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setPromptOpen(false)}
+                  disabled={savingPrompt}
+                  className="text-sm px-4 py-2 rounded-lg border active:scale-95 disabled:opacity-50"
+                  style={{ borderColor: 'var(--border-color)' }}
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={savePrompt}
+                  disabled={savingPrompt}
+                  className="text-sm px-4 py-2 rounded-lg text-white font-semibold active:scale-95 disabled:opacity-50"
+                  style={{ backgroundColor: 'var(--color-primary)' }}
+                >
+                  {savingPrompt ? 'Guardando...' : 'Guardar'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
