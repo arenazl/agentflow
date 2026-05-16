@@ -132,10 +132,11 @@ export const whatsappAPI = {
   list: (params?: { estado?: string; only_mine?: boolean; only_unassigned?: boolean }) =>
     api.get('/whatsapp/conversations/', { params }),
   get: (id: number) => api.get(`/whatsapp/conversations/${id}`),
-  update: (id: number, data: { assignee_id?: number | null; estado?: string; cliente_id?: number | null; nombre_contacto?: string | null; prompt_override?: string | null }) =>
+  update: (id: number, data: { assignee_id?: number | null; estado?: string; cliente_id?: number | null; nombre_contacto?: string | null; prompt_override?: string | null; voice_mode?: string | null; voice_id?: string | null }) =>
     api.patch(`/whatsapp/conversations/${id}`, data),
-  send: (id: number, contenido: string) =>
-    api.post(`/whatsapp/conversations/${id}/send`, { contenido }),
+  send: (id: number, contenido: string, opts?: { as_audio?: boolean; voice_id?: string }) =>
+    api.post(`/whatsapp/conversations/${id}/send`, { contenido, ...(opts || {}) }),
+  personalidades: () => api.get('/whatsapp/personalidades'),
   markRead: (id: number) => api.post(`/whatsapp/conversations/${id}/mark-read`),
   mockIncoming: (data: { telefono: string; nombre_contacto?: string; contenido: string }) =>
     api.post('/whatsapp/mock/incoming', data),

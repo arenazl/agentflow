@@ -4,14 +4,14 @@ import { toast } from 'sonner'
 import {
   MessageSquare, Send, Search, Phone, User as UserIcon,
   CheckCheck, Clock as ClockIcon, AlertOctagon, Archive,
-  PlusCircle, RefreshCw, ArrowLeft, MoreVertical, X as XIcon, Sparkles, Wand2,
+  PlusCircle, RefreshCw, ArrowLeft, MoreVertical, X as XIcon, Sparkles, Wand2, Mic, Type,
 } from 'lucide-react'
 import { whatsappAPI, usersAPI } from '../services/api'
 import { useAuth } from '../contexts/AuthContext'
 import { Skeleton } from '../components/ui/Skeleton'
 import { ABMFilterChip } from '../components/ui/classic'
 import type {
-  WhatsappConversation, WhatsappConversationDetail, WaConvEstado, User,
+  WhatsappConversation, WhatsappConversationDetail, WaConvEstado, User, Personalidad,
 } from '../types'
 
 const ESTADO_CONFIG: Record<WaConvEstado, { label: string; color: string; icon: typeof ClockIcon }> = {
@@ -67,6 +67,8 @@ export function Inbox() {
   const [quickPrompt, setQuickPrompt] = useState('')
   const [quickSaludo, setQuickSaludo] = useState('')
   const [quickSending, setQuickSending] = useState(false)
+  const [sendAsAudio, setSendAsAudio] = useState(false)
+  const [personalidades, setPersonalidades] = useState<Personalidad[]>([])
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
   const load = async () => {
@@ -91,6 +93,8 @@ export function Inbox() {
   useEffect(() => {
     load()
     usersAPI.list().then((r) => setVendedores(r.data.filter((u: User) => u.role === 'vendedor')))
+      .catch(() => {/* silent */})
+    whatsappAPI.personalidades().then((r) => setPersonalidades(r.data?.personalidades || []))
       .catch(() => {/* silent */})
     const t = setInterval(load, 30_000)
     return () => clearInterval(t)
@@ -157,7 +161,7 @@ export function Inbox() {
     if (!detail || !draft.trim() || sending) return
     setSending(true)
     try {
-      await whatsappAPI.send(detail.id, draft.trim())
+      await whatsappAPI.send(detail.id, draft.trim(), sendAsAudio ? { as_audio: true } : undefined)
       setDraft('')
       await loadDetail(detail.id)
       load()
@@ -666,18 +670,32 @@ export function Inbox() {
               }}
             >
               <div className="flex items-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setSendAsAudio((v) => !v)}
+                  disabled={detail.estado === 'bloqueada' || sending}
+                  className="flex-shrink-0 flex items-center justify-center w-11 h-11 rounded-full border transition-all duration-200 active:scale-95 disabled:opacity-40"
+                  style={{
+                    borderColor: sendAsAudio ? 'var(--color-primary)' : 'var(--border-color)',
+                    backgroundColor: sendAsAudio ? 'var(--color-primary)' : 'transparent',
+                    color: sendAsAudio ? '#fff' : 'var(--ink-3)',
+                  }}
+                  title={sendAsAudio ? 'Modo audio: tu texto se mandará como nota de voz (TTS)' : 'Cambiar a modo audio (TTS)'}
+                  aria-label="Modo audio"
+                >
+                  {sendAsAudio ? <Mic className="h-5 w-5" /> : <Type className="h-5 w-5" />}
+                </button>
                 <textarea
                   rows={1}
                   value={draft}
                   onChange={(e) => {
                     setDraft(e.target.value)
-                    // Auto-resize
                     const el = e.target as HTMLTextAreaElement
                     el.style.height = 'auto'
                     el.style.height = Math.min(el.scrollHeight, 120) + 'px'
                   }}
                   onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey && !('ontouchstart' in window)) { e.preventDefault(); handleSend() } }}
-                  placeholder={detail.estado === 'bloqueada' ? 'Conversación bloqueada' : 'Escribí una respuesta...'}
+                  placeholder={detail.estado === 'bloqueada' ? 'Conversación bloqueada' : (sendAsAudio ? 'Escribí lo que querés que diga la voz...' : 'Escribí una respuesta...')}
                   disabled={detail.estado === 'bloqueada' || sending}
                   className="flex-1 px-3 py-2.5 rounded-2xl border bg-[var(--bg-app)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] disabled:opacity-50 text-base md:text-sm resize-none"
                   style={{ borderColor: 'var(--border-color)', minHeight: 44 }}
@@ -702,6 +720,7 @@ export function Inbox() {
       <NewConvModal
         isOpen={newConvOpen}
         onClose={() => setNewConvOpen(false)}
+        personalidades={personalidades}
         onCreated={(convId) => {
           setNewConvOpen(false)
           load()
@@ -728,6 +747,42 @@ export function Inbox() {
             </div>
 
             <div className="flex-1 min-h-0 overflow-y-auto p-4 space-y-4">
+              {personalidades.length > 0 && (
+                <div>
+                  <label className="block text-xs font-semibold uppercase tracking-wider mb-1.5" style={{ color: 'var(--text-secondary)' }}>
+                    Personalidad preset (autocompleta saludo + prompt)
+                  </label>
+                  <select
+                    onChange={(e) => {
+                      const slug = e.target.value
+                      if (!slug) return
+                      const p = personalidades.find((x) => x.slug === slug)
+                      if (p) {
+                        setQuickPrompt(p.prompt)
+                        setQuickSaludo(p.saludo)
+                      }
+                    }}
+                    defaultValue=""
+                    className="w-full px-3 py-2 rounded-lg border bg-transparent text-sm"
+                    style={{ borderColor: 'var(--border-color)' }}
+                  >
+                    <option value="">— Elegir personalidad —</option>
+                    {Object.entries(
+                      personalidades.reduce<Record<string, Personalidad[]>>((acc, p) => {
+                        (acc[p.categoria] ||= []).push(p)
+                        return acc
+                      }, {})
+                    ).map(([cat, items]) => (
+                      <optgroup key={cat} label={cat}>
+                        {items.map((p) => (
+                          <option key={p.slug} value={p.slug}>{p.nombre}</option>
+                        ))}
+                      </optgroup>
+                    ))}
+                  </select>
+                </div>
+              )}
+
               <div>
                 <label className="block text-xs font-semibold uppercase tracking-wider mb-1.5" style={{ color: 'var(--text-secondary)' }}>
                   Saludo a enviar AHORA
@@ -741,6 +796,30 @@ export function Inbox() {
                   className="w-full px-3 py-2 rounded-lg border bg-transparent text-sm resize-y"
                   style={{ borderColor: 'var(--border-color)' }}
                 />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-wider mb-1.5" style={{ color: 'var(--text-secondary)' }}>
+                  Modo voz del bot
+                </label>
+                <select
+                  value={detail.voice_mode ?? 'off'}
+                  onChange={async (e) => {
+                    try {
+                      await whatsappAPI.update(detail.id, { voice_mode: e.target.value })
+                      await loadDetail(detail.id)
+                      toast.success('Modo voz actualizado')
+                    } catch {
+                      toast.error('Error al actualizar modo voz')
+                    }
+                  }}
+                  className="w-full px-3 py-2 rounded-lg border bg-transparent text-sm"
+                  style={{ borderColor: 'var(--border-color)' }}
+                >
+                  <option value="off">Off — siempre texto</option>
+                  <option value="auto">Auto — siempre audio TTS</option>
+                  <option value="mirror">Mirror — audio solo si el cliente manda audio</option>
+                </select>
               </div>
 
               <div>
@@ -1016,9 +1095,10 @@ interface NewConvModalProps {
   isOpen: boolean
   onClose: () => void
   onCreated: (convId: number) => void
+  personalidades?: Personalidad[]
 }
 
-function NewConvModal({ isOpen, onClose, onCreated }: NewConvModalProps) {
+function NewConvModal({ isOpen, onClose, onCreated, personalidades = [] }: NewConvModalProps) {
   const [telefono, setTelefono] = useState('')
   const [nombre, setNombre] = useState('')
   const [primerMensaje, setPrimerMensaje] = useState('')
@@ -1117,6 +1197,46 @@ function NewConvModal({ isOpen, onClose, onCreated }: NewConvModalProps) {
               style={{ borderColor: 'var(--border-color)' }}
             />
           </div>
+
+          {personalidades.length > 0 && (
+            <div>
+              <label className="block text-xs font-semibold uppercase tracking-wider mb-1.5" style={{ color: 'var(--text-secondary)' }}>
+                Personalidad preset
+              </label>
+              <select
+                onChange={(e) => {
+                  const slug = e.target.value
+                  if (!slug) return
+                  const p = personalidades.find((x) => x.slug === slug)
+                  if (p) {
+                    setPrompt(p.prompt)
+                    setPrimerMensaje(p.saludo)
+                    setUsePrompt(true)
+                  }
+                }}
+                defaultValue=""
+                className="w-full px-3 py-2 rounded-lg border bg-transparent text-sm"
+                style={{ borderColor: 'var(--border-color)' }}
+              >
+                <option value="">— Elegir personalidad (opcional) —</option>
+                {Object.entries(
+                  personalidades.reduce<Record<string, Personalidad[]>>((acc, p) => {
+                    (acc[p.categoria] ||= []).push(p)
+                    return acc
+                  }, {})
+                ).map(([cat, items]) => (
+                  <optgroup key={cat} label={cat}>
+                    {items.map((p) => (
+                      <option key={p.slug} value={p.slug}>{p.nombre}</option>
+                    ))}
+                  </optgroup>
+                ))}
+              </select>
+              <p className="text-[11px] mt-1.5" style={{ color: 'var(--text-secondary)' }}>
+                Al elegir, se autocompletan saludo + prompt. Podés editarlos antes de mandar.
+              </p>
+            </div>
+          )}
 
           <div>
             <label className="block text-xs font-semibold uppercase tracking-wider mb-1.5" style={{ color: 'var(--text-secondary)' }}>

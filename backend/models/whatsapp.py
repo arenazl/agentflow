@@ -35,6 +35,14 @@ class WhatsappConversation(Base):
     # Si está seteado, el bot usa este prompt en lugar del de Beyker (modo "joda" / perfil custom)
     prompt_override = Column(Text, nullable=True)
 
+    # Modo de voz para las respuestas del bot:
+    #   'off' (default): siempre texto
+    #   'auto': siempre audio (TTS via ElevenLabs)
+    #   'mirror': audio si el ultimo mensaje del cliente fue audio, sino texto
+    voice_mode = Column(String(20), nullable=False, default="off")
+    # voice_id de ElevenLabs override por conv. Si None, usa el default global.
+    voice_id = Column(String(50), nullable=True)
+
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 

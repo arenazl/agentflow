@@ -15,7 +15,8 @@ class WhatsappMessageBase(BaseModel):
 
 class WhatsappMessageOutgoing(WhatsappMessageBase):
     """Lo que envia el frontend cuando un vendedor responde."""
-    pass
+    as_audio: Optional[bool] = False  # si True, sintetiza con TTS y manda como nota de voz
+    voice_id: Optional[str] = None    # override de voz para esta llamada
 
 
 class WhatsappMessageResponse(WhatsappMessageBase):
@@ -52,6 +53,8 @@ class WhatsappConversationResponse(BaseModel):
     ultimo_mensaje: Optional[str] = None
     ultimo_mensaje_direccion: Optional[str] = None
     prompt_override: Optional[str] = None
+    voice_mode: Optional[str] = "off"
+    voice_id: Optional[str] = None
     created_at: datetime
 
     class Config:
@@ -72,6 +75,8 @@ class WhatsappConversationUpdate(BaseModel):
     cliente_id: Optional[int] = None
     nombre_contacto: Optional[str] = None
     prompt_override: Optional[str] = None
+    voice_mode: Optional[str] = None  # 'off' | 'auto' | 'mirror'
+    voice_id: Optional[str] = None
 
 
 # ---------- Webhook mock ----------

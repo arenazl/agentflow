@@ -283,7 +283,19 @@ export interface WhatsappConversation {
   ultimo_mensaje?: string | null
   ultimo_mensaje_direccion?: WaMsgDireccion | null
   prompt_override?: string | null
+  voice_mode?: 'off' | 'auto' | 'mirror' | string | null
+  voice_id?: string | null
   created_at: string
+}
+
+export interface Personalidad {
+  slug: string
+  nombre: string
+  categoria: string
+  voice_mode_sugerido?: 'off' | 'auto' | 'mirror'
+  tags?: string[]
+  saludo: string
+  prompt: string
 }
 
 export interface WhatsappConversationDetail extends WhatsappConversation {

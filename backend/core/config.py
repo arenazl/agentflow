@@ -33,6 +33,11 @@ class Settings(BaseSettings):
     GROQ_API_KEY: str = ""
     GROQ_WHISPER_MODEL: str = "whisper-large-v3"
 
+    # ElevenLabs (TTS para que el bot/vendedor responda en audio)
+    ELEVENLABS_API_KEY: str = ""
+    ELEVENLABS_MODEL: str = "eleven_flash_v2_5"
+    ELEVENLABS_DEFAULT_VOICE_ID: str = ""
+
     SMTP_HOST: str = "smtp-relay.brevo.com"
     SMTP_PORT: int = 587
     SMTP_USER: str = ""

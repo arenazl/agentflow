@@ -63,17 +63,38 @@ async def _get_baileys_config(db: AsyncSession) -> tuple[str, str]:
     return (ENV_BAILEYS_URL, ENV_API_KEY)
 
 
-async def _send_via_baileys(db: AsyncSession, telefono: str, contenido: str) -> tuple[bool, Optional[str], Optional[str]]:
+async def _send_via_baileys(
+    db: AsyncSession,
+    telefono: str,
+    contenido: str,
+    audio_url: Optional[str] = None,
+    ptt: bool = True,
+) -> tuple[bool, Optional[str], Optional[str]]:
     """Llama al servicio Baileys para enviar un mensaje real.
-    Devuelve (ok, meta_message_id, error)."""
+
+    Modo texto: contenido != None, audio_url = None
+    Modo audio: audio_url = URL Cloudinary del mp3; contenido se ignora (puede
+                guardarse en BD como referencia, ej la transcripcion).
+    Devuelve (ok, meta_message_id, error).
+    """
     service_url, api_key = await _get_baileys_config(db)
     if not service_url:
         return (False, None, None)  # modo mock, no es error
+    body = {"telefono": telefono}
+    if audio_url:
+        body["audio_url"] = audio_url
+        body["ptt"] = ptt
+        # Pasamos contenido tambien (Baileys lo ignora si audio_url, pero permite
+        # debugging y compat)
+        if contenido:
+            body["contenido"] = contenido
+    else:
+        body["contenido"] = contenido
     try:
-        async with httpx.AsyncClient(timeout=15) as client:
+        async with httpx.AsyncClient(timeout=30) as client:
             r = await client.post(
                 f"{service_url}/send",
-                json={"telefono": telefono, "contenido": contenido},
+                json=body,
                 headers={"X-API-Key": api_key},
             )
             data = r.json()
@@ -237,6 +258,13 @@ async def update_conversation(
     if "prompt_override" in data:
         # None / "" libera el override y vuelve al prompt Beyker normal
         c.prompt_override = data["prompt_override"] or None
+    if "voice_mode" in data:
+        vm = data["voice_mode"] or "off"
+        if vm not in ("off", "auto", "mirror"):
+            raise HTTPException(400, "voice_mode debe ser off|auto|mirror")
+        c.voice_mode = vm
+    if "voice_id" in data:
+        c.voice_id = (data["voice_id"] or None)
 
     await db.commit()
     await db.refresh(c)
@@ -255,14 +283,36 @@ async def send_message(
     if not c:
         raise HTTPException(404, "Conversacion no encontrada")
 
-    # Intentar enviar via Baileys si esta configurado, sino solo guardar (mock)
-    ok, meta_id, err = await _send_via_baileys(db, c.telefono, payload.contenido)
+    # Si as_audio: generar TTS y mandar como nota de voz
+    audio_url_out: Optional[str] = None
+    if getattr(payload, "as_audio", False):
+        try:
+            from services.tts import synthesize_to_cloudinary
+            audio_url_out = await synthesize_to_cloudinary(
+                payload.contenido,
+                voice_id=getattr(payload, "voice_id", None) or c.voice_id or None,
+                prefix=f"manual_c{conv_id}_u{user.id}",
+            )
+            if not audio_url_out:
+                print("[tts-manual] sintesis fallo, cayendo a texto")
+        except Exception as e:
+            print(f"[tts-manual] error: {e}")
+
+    # Intentar enviar via Baileys (audio o texto)
+    if audio_url_out:
+        ok, meta_id, err = await _send_via_baileys(db, c.telefono, payload.contenido, audio_url=audio_url_out)
+    else:
+        ok, meta_id, err = await _send_via_baileys(db, c.telefono, payload.contenido)
+
+    contenido_guardado = payload.contenido
+    if audio_url_out:
+        contenido_guardado = f"[audio] {audio_url_out}\n\n[Transcripcion] {payload.contenido}"
 
     m = WhatsappMessage(
         conversation_id=conv_id,
         direccion=WaMensajeDireccion.outbound,
         sender_id=user.id,
-        contenido=payload.contenido,
+        contenido=contenido_guardado,
         leido=True,
         meta_message_id=meta_id,
     )
@@ -282,6 +332,29 @@ async def send_message(
     if err:
         result["baileys_error"] = err
     return result
+
+
+@router.get("/personalidades")
+async def list_personalidades(
+    user: User = Depends(get_current_user),
+):
+    """Devuelve el catalogo de personalidades preset para el bot.
+
+    El archivo vive en backend/data/personalidades.json. Cada item tiene:
+      slug, nombre, categoria, saludo, prompt, voice_mode_sugerido, tags.
+
+    El frontend lo usa para popular un dropdown 'Personalidad' en el modal
+    de iniciar conversacion / editar prompt.
+    """
+    import json as _json
+    from pathlib import Path
+    path = Path(__file__).parent.parent / "data" / "personalidades.json"
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            data = _json.load(f)
+        return data
+    except Exception as e:
+        raise HTTPException(500, f"No se pudo cargar el catalogo: {e}")
 
 
 @router.post("/iniciar-conversacion")
@@ -590,20 +663,59 @@ async def webhook_incoming(
     if c.assignee_id is None and c.estado != WaConversacionEstado.bloqueada:
         bot_response_text, bot_action = await procesar_mensaje_entrante(db, c, m)
 
-        # Guardar la respuesta del bot como outbound (sender_id=None = bot)
+        # Guardar la respuesta del bot como outbound (sender_id=None = bot).
+        # Si voice_mode lo amerita, sintetizamos audio con ElevenLabs y mandamos
+        # como nota de voz. El contenido guardado en BD queda con formato
+        # "[audio] <url>\n\n[Transcripcion] <texto>" para que el frontend lo
+        # renderice con player + transcripcion.
         if bot_response_text:
+            # Decidir si responder en audio
+            should_use_audio = False
+            if c.voice_mode == "auto":
+                should_use_audio = True
+            elif c.voice_mode == "mirror":
+                # Si el ultimo mensaje entrante (el actual) era audio, espejar
+                if (payload.tipo or "text") == "audio":
+                    should_use_audio = True
+
+            audio_url_out: Optional[str] = None
+            if should_use_audio:
+                try:
+                    from services.tts import synthesize_to_cloudinary
+                    audio_url_out = await synthesize_to_cloudinary(
+                        bot_response_text,
+                        voice_id=c.voice_id or None,
+                        prefix=f"bot_c{c.id}",
+                    )
+                    if audio_url_out:
+                        print(f"[bot-tts] audio generado: {audio_url_out}")
+                    else:
+                        print("[bot-tts] sintesis fallo, cayendo a texto")
+                except Exception as e:
+                    print(f"[bot-tts] error: {e}")
+
+            contenido_guardado = bot_response_text
+            if audio_url_out:
+                contenido_guardado = (
+                    f"[audio] {audio_url_out}\n\n"
+                    f"[Transcripcion] {bot_response_text}"
+                )
+
             bot_msg = WhatsappMessage(
                 conversation_id=c.id,
                 direccion=WaMensajeDireccion.outbound,
                 sender_id=None,  # bot
-                contenido=bot_response_text,
+                contenido=contenido_guardado,
                 enviado_at=datetime.utcnow(),
                 leido=True,
                 meta_message_id=f"bot_{int(datetime.utcnow().timestamp() * 1000)}",
             )
             db.add(bot_msg)
-            # Enviar via Baileys
-            await _send_via_baileys(db, c.telefono, bot_response_text)
+            # Enviar via Baileys: audio si lo generamos, texto si no
+            if audio_url_out:
+                await _send_via_baileys(db, c.telefono, bot_response_text, audio_url=audio_url_out)
+            else:
+                await _send_via_baileys(db, c.telefono, bot_response_text)
 
         if bot_action == "derivar":
             agente = await derivar_a_humano(db, c)
