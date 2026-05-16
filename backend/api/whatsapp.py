@@ -311,19 +311,22 @@ async def iniciar_conversacion(
     c = r.scalar_one_or_none()
 
     if c is None:
+        # NO asignamos assignee_id: las conv con prompt_override son de bot,
+        # si tienen humano asignado el flujo del webhook no llama al bot.
         c = WhatsappConversation(
             telefono=telefono,
             nombre_contacto=nombre,
             estado=WaConversacionEstado.abierta,
             prompt_override=prompt,
-            assignee_id=user.id,
             ultima_actividad=datetime.utcnow(),
         )
         db.add(c)
         await db.flush()
     else:
-        # Si ya existe, actualizamos el prompt y el estado
+        # Si ya existe, actualizamos el prompt y el estado. Liberamos el assignee
+        # para que el bot retome el control.
         c.prompt_override = prompt
+        c.assignee_id = None
         if nombre:
             c.nombre_contacto = nombre
         c.estado = WaConversacionEstado.abierta
