@@ -281,6 +281,77 @@ async def send_message(
     return result
 
 
+@router.post("/iniciar-conversacion")
+async def iniciar_conversacion(
+    payload: dict,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Inicia una conversación proactivamente con un perfil/prompt custom (modo "joda").
+
+    payload: { telefono: str, prompt: str, primer_mensaje: str, nombre?: str }
+
+    - Crea una WhatsappConversation con prompt_override seteado.
+    - Manda el primer_mensaje via Baileys (lo escribe la "persona" custom, no Beyker).
+    - Cuando el destinatario responda, el bot usará el prompt_override en lugar
+      del prompt de Beyker.
+    """
+    telefono = (payload.get("telefono") or "").strip()
+    prompt = (payload.get("prompt") or "").strip()
+    primer_mensaje = (payload.get("primer_mensaje") or "").strip()
+    nombre = (payload.get("nombre") or "").strip() or None
+
+    if not telefono or not prompt or not primer_mensaje:
+        raise HTTPException(400, "telefono, prompt y primer_mensaje son obligatorios")
+
+    # Buscar si ya existe una conv con ese telefono
+    r = await db.execute(
+        select(WhatsappConversation).where(WhatsappConversation.telefono == telefono)
+    )
+    c = r.scalar_one_or_none()
+
+    if c is None:
+        c = WhatsappConversation(
+            telefono=telefono,
+            nombre_contacto=nombre,
+            estado=WaConversacionEstado.abierta,
+            prompt_override=prompt,
+            assignee_id=user.id,
+            ultima_actividad=datetime.utcnow(),
+        )
+        db.add(c)
+        await db.flush()
+    else:
+        # Si ya existe, actualizamos el prompt y el estado
+        c.prompt_override = prompt
+        if nombre:
+            c.nombre_contacto = nombre
+        c.estado = WaConversacionEstado.abierta
+        c.ultima_actividad = datetime.utcnow()
+
+    # Mandar primer mensaje via Baileys
+    ok, meta_id, err = await _send_via_baileys(db, telefono, primer_mensaje)
+
+    m = WhatsappMessage(
+        conversation_id=c.id,
+        direccion=WaMensajeDireccion.outbound,
+        sender_id=user.id,
+        contenido=primer_mensaje,
+        leido=True,
+        meta_message_id=meta_id,
+    )
+    db.add(m)
+    await db.commit()
+    await db.refresh(c)
+
+    return {
+        "conversation_id": c.id,
+        "telefono": telefono,
+        "sent_via_baileys": ok,
+        "baileys_error": err,
+    }
+
+
 @router.post("/conversations/{conv_id}/mark-read")
 async def mark_read(
     conv_id: int,

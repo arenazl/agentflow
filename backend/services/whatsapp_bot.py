@@ -233,7 +233,13 @@ async def procesar_mensaje_entrante(
     historial = r.scalars().all()
 
     contents = _historial_a_contents(historial, nuevo_mensaje)
-    system_instruction = await _build_system_instruction(db)
+
+    # Si la conv tiene prompt_override (modo "joda" / perfil custom), lo usamos
+    # tal cual SIN knowledge base ni tools de Beyker — es una identidad totalmente distinta.
+    if conversation.prompt_override:
+        system_instruction = conversation.prompt_override
+    else:
+        system_instruction = await _build_system_instruction(db)
 
     # Loop tool calling
     for _ in range(MAX_TOOL_CALLS):

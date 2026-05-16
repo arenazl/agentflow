@@ -32,6 +32,9 @@ class WhatsappConversation(Base):
     ultima_actividad = Column(DateTime(timezone=True), nullable=True)
     unread_count = Column(Integer, nullable=False, default=0)
 
+    # Si está seteado, el bot usa este prompt en lugar del de Beyker (modo "joda" / perfil custom)
+    prompt_override = Column(Text, nullable=True)
+
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
