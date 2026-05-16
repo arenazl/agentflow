@@ -85,7 +85,8 @@ class WhatsappMockIncoming(BaseModel):
 
 class BaileysIncomingPayload(BaseModel):
     """Payload que envia el servicio Baileys cuando recibe un mensaje real."""
-    telefono: str  # +549... formato E.164
+    telefono: str  # JID original (puede ser @lid o @s.whatsapp.net) o E.164
+    phone_publico: Optional[str] = None  # PN normalizado (+549...) — viene del senderPn cuando el JID es @lid
     nombre_contacto: Optional[str] = None
     contenido: str
     meta_message_id: Optional[str] = None

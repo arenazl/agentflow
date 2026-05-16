@@ -454,13 +454,37 @@ async def webhook_incoming(
         if dup.scalar_one_or_none():
             return {"ok": True, "duplicate": True, "meta_message_id": payload.meta_message_id}
 
+    # Resolver PN normalizado (E.164 sin "+") por si el JID viene como @lid.
+    def _normalize_pn(s: Optional[str]) -> Optional[str]:
+        if not s:
+            return None
+        s2 = s.replace("+", "").strip()
+        return s2 or None
+
+    pn = _normalize_pn(payload.phone_publico)
+
+    # Buscar conv: primero por el JID/telefono original, despues por el PN normalizado
+    # (esto matchea las conv iniciadas con POST /iniciar-conversacion donde guardamos
+    # el E.164 puro y Baileys puede mandar el LID).
     r = await db.execute(
         select(WhatsappConversation).where(WhatsappConversation.telefono == payload.telefono)
     )
     c = r.scalar_one_or_none()
 
+    if not c and pn:
+        r = await db.execute(
+            select(WhatsappConversation).where(WhatsappConversation.telefono == pn)
+        )
+        c = r.scalar_one_or_none()
+        if c:
+            # Encontrado por PN: actualizar el telefono al JID original para que
+            # los siguientes mensajes matcheen directo.
+            c.telefono = payload.telefono
+
     if not c:
-        cli_r = await db.execute(select(Cliente).where(Cliente.telefono == payload.telefono))
+        # Buscar cliente por PN o por JID
+        cli_tel = pn or payload.telefono
+        cli_r = await db.execute(select(Cliente).where(Cliente.telefono == cli_tel))
         cli = cli_r.scalar_one_or_none()
         c = WhatsappConversation(
             telefono=payload.telefono,
