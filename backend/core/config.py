@@ -29,6 +29,10 @@ class Settings(BaseSettings):
     GEMINI_API_KEY: str = ""
     GEMINI_MODEL: str = "gemini-2.5-flash"
 
+    # Groq (Whisper para transcribir audios entrantes)
+    GROQ_API_KEY: str = ""
+    GROQ_WHISPER_MODEL: str = "whisper-large-v3"
+
     SMTP_HOST: str = "smtp-relay.brevo.com"
     SMTP_PORT: int = 587
     SMTP_USER: str = ""

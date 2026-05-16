@@ -503,10 +503,31 @@ async def webhook_incoming(
         db.add(c)
         await db.flush()
 
+    # Si es audio, transcribir con Groq Whisper.
+    # Formato guardado: "[audio] <url-cloudinary>\n\n[Transcripcion] <texto>"
+    # El bot recibe ese contenido y reconoce que es un audio + texto entendible.
+    contenido_final = payload.contenido
+    if payload.tipo == "audio" and payload.media_url:
+        try:
+            from services.transcribe import transcribe_audio_from_url
+            transcripcion = await transcribe_audio_from_url(payload.media_url)
+            if transcripcion:
+                contenido_final = (
+                    f"[audio] {payload.media_url}\n\n"
+                    f"[Transcripcion] {transcripcion}"
+                )
+                print(f"[whatsapp] audio transcripto: {transcripcion[:120]}")
+            else:
+                contenido_final = f"[audio] {payload.media_url}\n\n[Transcripcion no disponible]"
+                print(f"[whatsapp] audio sin transcripcion: {payload.media_url}")
+        except Exception as e:
+            print(f"[whatsapp] error transcribiendo: {e}")
+            contenido_final = f"[audio] {payload.media_url}"
+
     m = WhatsappMessage(
         conversation_id=c.id,
         direccion=WaMensajeDireccion.inbound,
-        contenido=payload.contenido,
+        contenido=contenido_final,
         enviado_at=now,
         leido=False,
         meta_message_id=payload.meta_message_id,

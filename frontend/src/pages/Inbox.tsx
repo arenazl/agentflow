@@ -640,7 +640,7 @@ export function Inbox() {
                           borderTopRightRadius: isOut ? '0.25rem' : '1rem',
                         }}
                       >
-                        <div className="text-sm whitespace-pre-wrap">{m.contenido}</div>
+                        <MessageBody contenido={m.contenido} isOut={isOut} />
                         <div className="flex items-center gap-1 justify-end mt-1 text-[10px] opacity-70">
                           {isOut && m.sender_nombre && (
                             <span>{m.sender_nombre.split(' ')[0]} ·</span>
@@ -963,6 +963,51 @@ function MockIncomingModal({ isOpen, onClose, onSent }: { isOpen: boolean; onClo
       </div>
     </div>
   )
+}
+
+// ---------- MessageBody: parsea contenido para mostrar audio + transcripcion ----------
+
+function MessageBody({ contenido, isOut }: { contenido: string; isOut: boolean }) {
+  // Formato emitido por el backend para audios:
+  //   [audio] https://res.cloudinary.com/...\n\n[Transcripcion] texto...
+  // Tambien soportamos:
+  //   [audio] URL
+  //   [audio - sin URL]  (caso de error de descarga)
+  const audioMatch = contenido.match(/^\[audio\]\s+(https?:\/\/\S+)(?:\s*\n+\[Transcripcion\]\s*([\s\S]*))?$/)
+  if (audioMatch) {
+    const url = audioMatch[1]
+    const transcripcion = (audioMatch[2] || '').trim()
+    const transNoDisponible = transcripcion.toLowerCase().includes('no disponible')
+    return (
+      <div className="space-y-1.5">
+        <audio
+          controls
+          src={url}
+          preload="none"
+          className="w-full max-w-xs"
+          style={{ height: 36 }}
+        />
+        {transcripcion && !transNoDisponible && (
+          <div
+            className="text-xs italic whitespace-pre-wrap"
+            style={{
+              color: isOut ? 'var(--color-primary)' : 'var(--text-secondary)',
+              opacity: 0.85,
+            }}
+          >
+            {transcripcion}
+          </div>
+        )}
+        {transNoDisponible && (
+          <div className="text-xs italic" style={{ color: 'var(--text-secondary)', opacity: 0.6 }}>
+            (sin transcripcion)
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  return <div className="text-sm whitespace-pre-wrap">{contenido}</div>
 }
 
 // ---------- Modal: iniciar conversación nueva (con prompt opcional tipo Laura) ----------

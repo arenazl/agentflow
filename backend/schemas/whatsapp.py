@@ -91,6 +91,8 @@ class BaileysIncomingPayload(BaseModel):
     phone_publico: Optional[str] = None  # PN normalizado (+549...) — viene del senderPn cuando el JID es @lid
     nombre_contacto: Optional[str] = None
     contenido: str
+    tipo: Optional[str] = "text"  # text | audio | image | video | document
+    media_url: Optional[str] = None  # URL Cloudinary cuando tipo!=text
     meta_message_id: Optional[str] = None
     timestamp: Optional[datetime] = None
 
