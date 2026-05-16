@@ -104,7 +104,13 @@ export function Inbox() {
       }
     }
     if (selectedId === null) {
-      setSelectedId(conversations[0].id)
+      // Auto-seleccionar la primera SOLO en desktop. En mobile el usuario tiene
+      // que ver el listado primero y elegir; si auto-seleccionamos, al tocar
+      // "atras" el efecto lo manda otra vez a una conv y nunca puede volver.
+      const isDesktop = typeof window !== 'undefined' && window.innerWidth >= 1024
+      if (isDesktop) {
+        setSelectedId(conversations[0].id)
+      }
     }
   }, [loading, conversations, selectedId, searchParams, setSearchParams])
 
