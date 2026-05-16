@@ -59,6 +59,7 @@ export function Inbox() {
   const [sending, setSending] = useState(false)
   const [draft, setDraft] = useState('')
   const [mockOpen, setMockOpen] = useState(false)
+  const [newConvOpen, setNewConvOpen] = useState(false)
   const [promptOpen, setPromptOpen] = useState(false)
   const [promptDraft, setPromptDraft] = useState('')
   const [savingPrompt, setSavingPrompt] = useState(false)
@@ -244,6 +245,15 @@ export function Inbox() {
                 title="Refrescar"
               >
                 <RefreshCw className="h-4 w-4" />
+              </button>
+              <button
+                onClick={() => setNewConvOpen(true)}
+                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded text-xs font-semibold text-white"
+                style={{ backgroundColor: 'var(--color-primary)' }}
+                title="Iniciar conversacion nueva"
+              >
+                <Sparkles className="h-3.5 w-3.5" />
+                Nueva
               </button>
               <button
                 onClick={() => setMockOpen(true)}
@@ -630,6 +640,16 @@ export function Inbox() {
 
       <MockIncomingModal isOpen={mockOpen} onClose={() => setMockOpen(false)} onSent={() => { setMockOpen(false); load() }} />
 
+      <NewConvModal
+        isOpen={newConvOpen}
+        onClose={() => setNewConvOpen(false)}
+        onCreated={(convId) => {
+          setNewConvOpen(false)
+          load()
+          setSelectedId(convId)
+        }}
+      />
+
       {/* Modal: editar prompt custom de la conv */}
       {promptOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-0 sm:p-4">
@@ -803,6 +823,181 @@ function MockIncomingModal({ isOpen, onClose, onSent }: { isOpen: boolean; onClo
               {sending ? 'Enviando...' : 'Simular'}
             </button>
           </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ---------- Modal: iniciar conversación nueva (con prompt opcional tipo Laura) ----------
+
+interface NewConvModalProps {
+  isOpen: boolean
+  onClose: () => void
+  onCreated: (convId: number) => void
+}
+
+function NewConvModal({ isOpen, onClose, onCreated }: NewConvModalProps) {
+  const [telefono, setTelefono] = useState('')
+  const [nombre, setNombre] = useState('')
+  const [primerMensaje, setPrimerMensaje] = useState('')
+  const [usePrompt, setUsePrompt] = useState(false)
+  const [prompt, setPrompt] = useState('')
+  const [sending, setSending] = useState(false)
+
+  if (!isOpen) return null
+
+  const submit = async () => {
+    const tel = telefono.replace(/[^0-9]/g, '')
+    const msg = primerMensaje.trim()
+    if (!tel || !msg) {
+      toast.error('Teléfono y primer mensaje son obligatorios')
+      return
+    }
+    if (usePrompt && !prompt.trim()) {
+      toast.error('Si activás "Prompt custom", tenés que pegar el prompt')
+      return
+    }
+    setSending(true)
+    try {
+      if (usePrompt) {
+        const r = await whatsappAPI.iniciarConversacion({
+          telefono: tel,
+          prompt: prompt.trim(),
+          primer_mensaje: msg,
+          nombre: nombre.trim() || undefined,
+        })
+        toast.success('Conversación iniciada con prompt custom')
+        onCreated(r.data.conversation_id)
+      } else {
+        // Sin prompt = arranque normal Beyker. Reusamos iniciar-conversacion pasando un
+        // prompt vacío genérico que se borra después, pero más simple: usar mock/incoming
+        // no es lo que queremos. Para casos sin prompt custom, mandamos al endpoint igual
+        // con un prompt mínimo neutro que NO altere el bot Beyker. Si dejamos prompt vacío,
+        // el endpoint lo rechaza. Asi que para "sin prompt" mandamos un placeholder y
+        // después el usuario borra el override desde el chat.
+        // Mejor: si el usuario NO quiere prompt custom, le decimos que use el inbox normal
+        // (no podemos crear conv proactiva contra Beyker sin prompt). Por ahora limitamos
+        // este modal a "iniciar conv con prompt custom".
+        toast.error('Activa "Prompt custom" para iniciar la conversación')
+        return
+      }
+      // Reset state
+      setTelefono(''); setNombre(''); setPrimerMensaje(''); setPrompt(''); setUsePrompt(false)
+    } catch (e: any) {
+      toast.error(e?.response?.data?.detail || 'Error al iniciar la conversación')
+    } finally {
+      setSending(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-0 sm:p-4">
+      <div className="absolute inset-0 bg-black/60" onClick={() => !sending && onClose()} />
+      <div
+        className="relative w-full sm:max-w-xl h-full sm:h-auto sm:max-h-[92vh] sm:rounded-2xl flex flex-col overflow-hidden"
+        style={{ backgroundColor: 'var(--bg-card)', paddingTop: 'env(safe-area-inset-top)' }}
+      >
+        <div className="flex-shrink-0 flex items-center justify-between px-4 py-3 border-b" style={{ borderColor: 'var(--border-color)' }}>
+          <div className="flex items-center gap-2">
+            <Sparkles className="h-5 w-5" style={{ color: 'var(--color-accent)' }} />
+            <h3 className="font-bold text-lg">Nueva conversación</h3>
+          </div>
+          <button onClick={() => !sending && onClose()} className="p-2 -mr-1 rounded-lg hover:bg-black/5">
+            <XIcon className="h-5 w-5" />
+          </button>
+        </div>
+
+        <div className="flex-1 min-h-0 overflow-y-auto p-4 space-y-4">
+          <div>
+            <label className="block text-xs font-semibold uppercase tracking-wider mb-1.5" style={{ color: 'var(--text-secondary)' }}>
+              Teléfono (E.164, sin +)
+            </label>
+            <input
+              type="text"
+              value={telefono}
+              onChange={(e) => setTelefono(e.target.value)}
+              placeholder="5491143999948"
+              className="w-full px-3 py-2 rounded-lg border bg-transparent text-sm"
+              style={{ borderColor: 'var(--border-color)' }}
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold uppercase tracking-wider mb-1.5" style={{ color: 'var(--text-secondary)' }}>
+              Nombre (opcional)
+            </label>
+            <input
+              type="text"
+              value={nombre}
+              onChange={(e) => setNombre(e.target.value)}
+              placeholder="Nico"
+              className="w-full px-3 py-2 rounded-lg border bg-transparent text-sm"
+              style={{ borderColor: 'var(--border-color)' }}
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold uppercase tracking-wider mb-1.5" style={{ color: 'var(--text-secondary)' }}>
+              Primer mensaje
+            </label>
+            <textarea
+              value={primerMensaje}
+              onChange={(e) => setPrimerMensaje(e.target.value)}
+              rows={2}
+              placeholder="Hola Ro, qué onda? podes hablar?"
+              className="w-full px-3 py-2 rounded-lg border bg-transparent text-sm resize-y"
+              style={{ borderColor: 'var(--border-color)' }}
+            />
+          </div>
+
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={usePrompt}
+              onChange={(e) => setUsePrompt(e.target.checked)}
+              className="w-4 h-4"
+            />
+            <span className="text-sm font-medium">Usar prompt custom (modo Laura / perfil)</span>
+          </label>
+
+          {usePrompt && (
+            <div>
+              <label className="block text-xs font-semibold uppercase tracking-wider mb-1.5" style={{ color: 'var(--text-secondary)' }}>
+                Prompt personalizado
+              </label>
+              <textarea
+                value={prompt}
+                onChange={(e) => setPrompt(e.target.value)}
+                rows={12}
+                placeholder="Sos Laura, 28 años, de Moreno. Le estás escribiendo a..."
+                className="w-full px-3 py-2 rounded-lg border bg-transparent text-sm resize-y font-mono"
+                style={{ borderColor: 'var(--border-color)', minHeight: 220 }}
+              />
+            </div>
+          )}
+        </div>
+
+        <div className="flex-shrink-0 flex items-center justify-end gap-2 p-4 border-t" style={{ borderColor: 'var(--border-color)', paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}>
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={sending}
+            className="text-sm px-4 py-2 rounded-lg border active:scale-95 disabled:opacity-50"
+            style={{ borderColor: 'var(--border-color)' }}
+          >
+            Cancelar
+          </button>
+          <button
+            type="button"
+            onClick={submit}
+            disabled={sending}
+            className="text-sm px-4 py-2 rounded-lg text-white font-semibold active:scale-95 disabled:opacity-50 inline-flex items-center gap-2"
+            style={{ backgroundColor: 'var(--color-primary)' }}
+          >
+            <Sparkles className="h-4 w-4" />
+            {sending ? 'Iniciando...' : 'Iniciar y enviar'}
+          </button>
         </div>
       </div>
     </div>
