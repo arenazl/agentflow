@@ -4,7 +4,7 @@ import { toast } from 'sonner'
 import {
   MessageSquare, Send, Search, Phone, User as UserIcon,
   CheckCheck, Clock as ClockIcon, AlertOctagon, Archive,
-  PlusCircle, RefreshCw, ArrowLeft, MoreVertical, X as XIcon, Sparkles,
+  PlusCircle, RefreshCw, ArrowLeft, MoreVertical, X as XIcon, Sparkles, Wand2,
 } from 'lucide-react'
 import { whatsappAPI, usersAPI } from '../services/api'
 import { useAuth } from '../contexts/AuthContext'
@@ -63,6 +63,10 @@ export function Inbox() {
   const [promptOpen, setPromptOpen] = useState(false)
   const [promptDraft, setPromptDraft] = useState('')
   const [savingPrompt, setSavingPrompt] = useState(false)
+  const [quickOpen, setQuickOpen] = useState(false)
+  const [quickPrompt, setQuickPrompt] = useState('')
+  const [quickSaludo, setQuickSaludo] = useState('')
+  const [quickSending, setQuickSending] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
   const load = async () => {
@@ -184,6 +188,42 @@ export function Inbox() {
 
   const appendToPrompt = (extra: string) => {
     setPromptDraft((p) => (p ? p.trimEnd() + '\n\n' + extra : extra))
+  }
+
+  const openQuick = () => {
+    if (!detail) return
+    setQuickPrompt(detail.prompt_override ?? '')
+    setQuickSaludo('')
+    setQuickOpen(true)
+  }
+
+  const submitQuick = async () => {
+    if (!detail) return
+    const saludo = quickSaludo.trim()
+    if (!saludo) {
+      toast.error('Escribi el saludo a enviar')
+      return
+    }
+    setQuickSending(true)
+    try {
+      // Si hay prompt y cambio respecto al actual, guardarlo
+      if (quickPrompt.trim() && quickPrompt !== (detail.prompt_override ?? '')) {
+        await whatsappAPI.update(detail.id, { prompt_override: quickPrompt.trim() })
+      } else if (!quickPrompt.trim() && detail.prompt_override) {
+        // Si lo vacian, limpiar el override
+        await whatsappAPI.update(detail.id, { prompt_override: null })
+      }
+      // Mandar el saludo
+      await whatsappAPI.send(detail.id, saludo)
+      await loadDetail(detail.id)
+      load()
+      setQuickOpen(false)
+      toast.success('Saludo enviado')
+    } catch (e: any) {
+      toast.error(e?.response?.data?.detail || 'Error al disparar')
+    } finally {
+      setQuickSending(false)
+    }
   }
 
   const handleAssign = async (vendedorId: number | null) => {
@@ -446,6 +486,16 @@ export function Inbox() {
               <div className="hidden md:flex items-center gap-2 flex-shrink-0">
                 <button
                   type="button"
+                  onClick={openQuick}
+                  className="text-xs px-2.5 py-1.5 rounded inline-flex items-center gap-1.5 active:scale-95 text-white font-semibold"
+                  style={{ backgroundColor: 'var(--color-primary)' }}
+                  title="Disparar saludo (con prompt opcional)"
+                >
+                  <Wand2 className="h-3.5 w-3.5" />
+                  Disparar
+                </button>
+                <button
+                  type="button"
                   onClick={openPromptEditor}
                   className="text-xs px-2.5 py-1.5 rounded border bg-transparent inline-flex items-center gap-1.5 active:scale-95"
                   style={{
@@ -535,6 +585,15 @@ export function Inbox() {
                         <option value="bloqueada">Bloqueada</option>
                       </select>
                     </div>
+                    <button
+                      type="button"
+                      onClick={() => { setChatMenuOpen(false); openQuick() }}
+                      className="w-full flex items-center gap-2 px-3 py-2.5 rounded-lg text-sm font-semibold text-white active:scale-95"
+                      style={{ backgroundColor: 'var(--color-primary)' }}
+                    >
+                      <Wand2 className="h-4 w-4" />
+                      Disparar saludo (con prompt opcional)
+                    </button>
                     <button
                       type="button"
                       onClick={() => { setChatMenuOpen(false); openPromptEditor() }}
@@ -649,6 +708,83 @@ export function Inbox() {
           setSelectedId(convId)
         }}
       />
+
+      {/* Modal: Disparar saludo (con prompt opcional) — version comprimida */}
+      {quickOpen && detail && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-0 sm:p-4">
+          <div className="absolute inset-0 bg-black/60" onClick={() => !quickSending && setQuickOpen(false)} />
+          <div
+            className="relative w-full sm:max-w-xl h-full sm:h-auto sm:max-h-[92vh] sm:rounded-2xl flex flex-col overflow-hidden"
+            style={{ backgroundColor: 'var(--bg-card)', paddingTop: 'env(safe-area-inset-top)' }}
+          >
+            <div className="flex-shrink-0 flex items-center justify-between px-4 py-3 border-b" style={{ borderColor: 'var(--border-color)' }}>
+              <div className="flex items-center gap-2">
+                <Wand2 className="h-5 w-5" style={{ color: 'var(--color-primary)' }} />
+                <h3 className="font-bold text-lg">Disparar a {detail.nombre_contacto ?? detail.telefono}</h3>
+              </div>
+              <button onClick={() => !quickSending && setQuickOpen(false)} className="p-2 -mr-1 rounded-lg hover:bg-black/5">
+                <XIcon className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="flex-1 min-h-0 overflow-y-auto p-4 space-y-4">
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-wider mb-1.5" style={{ color: 'var(--text-secondary)' }}>
+                  Saludo a enviar AHORA
+                </label>
+                <textarea
+                  value={quickSaludo}
+                  onChange={(e) => setQuickSaludo(e.target.value)}
+                  rows={2}
+                  autoFocus
+                  placeholder="Hola Ro, qué onda? podes hablar?"
+                  className="w-full px-3 py-2 rounded-lg border bg-transparent text-sm resize-y"
+                  style={{ borderColor: 'var(--border-color)' }}
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-wider mb-1.5" style={{ color: 'var(--text-secondary)' }}>
+                  Prompt del bot (se guarda si lo modificás)
+                </label>
+                <textarea
+                  value={quickPrompt}
+                  onChange={(e) => setQuickPrompt(e.target.value)}
+                  rows={10}
+                  placeholder="Vacio = bot Beyker normal. Pegá un prompt custom (Laura, etc) para usar una identidad distinta cuando el contacto responda."
+                  className="w-full px-3 py-2 rounded-lg border bg-transparent text-sm resize-y font-mono"
+                  style={{ borderColor: 'var(--border-color)', minHeight: 180 }}
+                />
+                <p className="text-[11px] mt-1.5" style={{ color: 'var(--text-secondary)' }}>
+                  {detail.prompt_override ? 'Esta conv ya tiene prompt custom activo. Si lo modificás, se actualiza.' : 'Sin prompt = bot Beyker contesta cuando el cliente responda.'}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex-shrink-0 flex items-center justify-end gap-2 p-4 border-t" style={{ borderColor: 'var(--border-color)', paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}>
+              <button
+                type="button"
+                onClick={() => setQuickOpen(false)}
+                disabled={quickSending}
+                className="text-sm px-4 py-2 rounded-lg border active:scale-95 disabled:opacity-50"
+                style={{ borderColor: 'var(--border-color)' }}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={submitQuick}
+                disabled={quickSending}
+                className="text-sm px-4 py-2 rounded-lg text-white font-semibold active:scale-95 disabled:opacity-50 inline-flex items-center gap-2"
+                style={{ backgroundColor: 'var(--color-primary)' }}
+              >
+                <Wand2 className="h-4 w-4" />
+                {quickSending ? 'Enviando...' : 'Guardar prompt + enviar saludo'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Modal: editar prompt custom de la conv */}
       {promptOpen && (
