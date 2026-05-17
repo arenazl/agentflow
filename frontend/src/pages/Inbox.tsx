@@ -301,12 +301,35 @@ export function Inbox() {
   }
 
   const stopRecording = (cancel: boolean) => {
-    if (!recording || !mediaRecorderRef.current) return
+    const mr = mediaRecorderRef.current
+    if (!mr) return
+    if (mr.state === 'inactive') return
     recordCanceledRef.current = cancel
     try {
-      mediaRecorderRef.current.stop()
+      mr.stop()
     } catch {/* noop */}
   }
+
+  // Listeners globales mientras grabamos: aseguran que soltar afuera del boton
+  // tambien dispare stop. Se montan al iniciar la grabacion y se quitan al parar.
+  useEffect(() => {
+    if (!recording) return
+    const onPointerUp = () => stopRecording(false)
+    const onPointerCancel = () => stopRecording(true)
+    window.addEventListener('pointerup', onPointerUp)
+    window.addEventListener('pointercancel', onPointerCancel)
+    // Touch fallback para iOS Safari que a veces no dispara pointerup
+    window.addEventListener('touchend', onPointerUp)
+    window.addEventListener('touchcancel', onPointerCancel)
+    window.addEventListener('mouseup', onPointerUp)
+    return () => {
+      window.removeEventListener('pointerup', onPointerUp)
+      window.removeEventListener('pointercancel', onPointerCancel)
+      window.removeEventListener('touchend', onPointerUp)
+      window.removeEventListener('touchcancel', onPointerCancel)
+      window.removeEventListener('mouseup', onPointerUp)
+    }
+  }, [recording])
 
   const uploadVoiceClone = async (blob: Blob) => {
     if (!detail) return
@@ -830,13 +853,15 @@ export function Inbox() {
                     <button
                       type="button"
                       disabled={detail.estado === 'bloqueada' || voiceSending}
-                      onMouseDown={(e) => { e.preventDefault(); startRecording() }}
-                      onMouseUp={() => stopRecording(false)}
-                      onMouseLeave={() => { if (recording) stopRecording(true) }}
-                      onTouchStart={(e) => { e.preventDefault(); startRecording() }}
-                      onTouchEnd={(e) => { e.preventDefault(); stopRecording(false) }}
-                      onTouchCancel={() => stopRecording(true)}
-                      className="flex-shrink-0 flex items-center justify-center w-11 h-11 rounded-full text-white transition-all duration-200 active:scale-95 disabled:opacity-40 select-none"
+                      onPointerDown={(e) => {
+                        e.preventDefault()
+                        // Captura el puntero para que sigamos recibiendo eventos
+                        // aunque el dedo / mouse se mueva fuera del boton.
+                        try { (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId) } catch {/* noop */}
+                        startRecording()
+                      }}
+                      onContextMenu={(e) => e.preventDefault()}
+                      className="flex-shrink-0 flex items-center justify-center w-11 h-11 rounded-full text-white transition-all duration-200 active:scale-95 disabled:opacity-40 select-none touch-none"
                       style={{ backgroundColor: voiceSending ? 'var(--text-secondary)' : 'var(--color-primary)' }}
                       title="Mantené apretado para grabar con voz clonada"
                       aria-label="Grabar voz"
